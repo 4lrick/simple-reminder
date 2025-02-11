@@ -2,7 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
-from core.reminder import format_discord_timestamp, calculate_next_occurrence
+from src.reminder import format_discord_timestamp, calculate_next_occurrence
 
 @app_commands.command(name="list", description="List all active reminders in the server")
 async def list_command(interaction: discord.Interaction):

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import discord
 from discord import app_commands
-from core.reminder import format_discord_timestamp, calculate_next_occurrence
+from src.reminder import format_discord_timestamp, calculate_next_occurrence
 from .autocomplete import timezone_autocomplete, recurring_autocomplete, number_autocomplete
 
 @app_commands.command(name="edit", description="Edit an existing reminder")

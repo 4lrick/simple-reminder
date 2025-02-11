@@ -2,7 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
-from core.reminder import format_discord_timestamp
+from src.reminder import format_discord_timestamp
 from commands.handle_reminder import handle_reminder
 from commands.autocomplete import timezone_autocomplete, recurring_autocomplete
 

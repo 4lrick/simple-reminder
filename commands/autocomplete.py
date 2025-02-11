@@ -2,7 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo, available_timezones
 import discord
 from discord import app_commands
-from core.reminder import format_discord_timestamp, calculate_next_occurrence
+from src.reminder import format_discord_timestamp, calculate_next_occurrence
 import re
 
 def format_mentions(text: str, guild: discord.Guild) -> str:

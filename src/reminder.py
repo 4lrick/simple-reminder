@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from typing import List, Optional
 import discord
 from discord.ext import commands
-from core.config import SAVE_FILE
+from src.config import SAVE_FILE
 
 logger = logging.getLogger(__name__)
 
