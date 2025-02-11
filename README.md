@@ -21,6 +21,20 @@ cd simple-reminder
 DISCORD_TOKEN=your_token_here docker compose up -d
 ```
 
+### Data Persistence
+
+The bot stores all reminders in `/app/data/reminders.json` which is persisted using a Docker named volume `reminder-data`. This ensures your reminders survive container updates and restarts.
+
+To backup your reminders:
+```bash
+# Copy reminders from the container
+docker cp simple-reminder:/app/data/reminders.json ./reminders_backup.json
+
+# To restore from backup
+docker cp ./reminders_backup.json simple-reminder:/app/data/reminders.json
+docker restart simple-reminder
+```
+
 ## Usage
 
 ### Command Formats

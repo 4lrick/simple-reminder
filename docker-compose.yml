@@ -4,4 +4,10 @@ services:
     container_name: simple-reminder
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
+    volumes:
+      - reminder-data:/app/data
     restart: unless-stopped
+
+volumes:
+  reminder-data:
+    name: reminder-data
