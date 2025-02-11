@@ -2,9 +2,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
-from src.reminder import format_discord_timestamp
-from commands.handle_reminder import handle_reminder
-from commands.autocomplete import timezone_autocomplete, recurring_autocomplete
+from src.reminder import format_discord_timestamp, calculate_next_occurrence
+from .handle_reminder import handle_reminder
+from .autocomplete import timezone_autocomplete, recurring_autocomplete
 
 @app_commands.command(name="set", description="Set a new reminder")
 @app_commands.describe(

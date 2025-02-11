@@ -8,11 +8,11 @@ from zoneinfo import ZoneInfo
 
 from src.config import DISCORD_TOKEN, CLEANUP_DAYS
 from src.reminder import ReminderManager, format_discord_timestamp, calculate_next_occurrence
-from commands.set_reminder import reminder_set
-from commands.list_reminders import list_command
-from commands.remove_reminder import remove_command
-from commands.edit_reminder import edit_command
-from commands.help import show_help
+from src.commands.set_reminder import reminder_set
+from src.commands.list_reminders import list_command
+from src.commands.remove_reminder import remove_command
+from src.commands.edit_reminder import edit_command
+from src.commands.help import show_help
 
 logging.basicConfig(
     level=logging.INFO,
