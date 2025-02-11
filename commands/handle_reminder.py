@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import logging
 import discord
-from reminder import Reminder, format_discord_timestamp, calculate_next_occurrence
+from core.reminder import Reminder, format_discord_timestamp, calculate_next_occurrence
 
 logger = logging.getLogger(__name__)
 

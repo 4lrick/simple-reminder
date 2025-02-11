@@ -6,8 +6,8 @@ import asyncio
 import logging
 from zoneinfo import ZoneInfo
 
-from config import DISCORD_TOKEN, CLEANUP_DAYS
-from reminder import ReminderManager, format_discord_timestamp, calculate_next_occurrence
+from core.config import DISCORD_TOKEN, CLEANUP_DAYS
+from core.reminder import ReminderManager, format_discord_timestamp, calculate_next_occurrence
 from commands.set_reminder import reminder_set
 from commands.list_reminders import list_command
 from commands.remove_reminder import remove_command

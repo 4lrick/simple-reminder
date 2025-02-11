@@ -2,7 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
-from reminder import format_discord_timestamp, calculate_next_occurrence
+from core.reminder import format_discord_timestamp, calculate_next_occurrence
 from .autocomplete import number_autocomplete
 
 @app_commands.command(name="remove", description="Remove a reminder by its number")
