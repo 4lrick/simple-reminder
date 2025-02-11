@@ -37,51 +37,25 @@ docker restart simple-reminder
 
 ## Usage
 
-### Command Formats
+### Commands
 
-**Slash Commands:**
 ```
-/reminder list
-/reminder help
-/reminder remove number:<number>
+/reminder list                   List all your active reminders
+/reminder help                   Show help about using the bot
+/reminder remove number:<number> Remove a reminder by its number
 /reminder edit number:<number> [date:YYYY-MM-DD] [time:HH:MM] [message:MESSAGE] [timezone:ZONE] [recurring:TYPE]
 /reminder set date:<date> time:<time> message:<message> [timezone:<zone>] [recurring:<type>]
 ```
 
-**Text Commands:**
-```
-!reminder list
-!reminder help
-!reminder remove NUMBER
-!reminder edit NUMBER date:YYYY-MM-DD time:HH:MM message:MESSAGE timezone:ZONE recurring:TYPE
-!reminder YYYY-MM-DD HH:MM [tz:ZONE] [TYPE] [@users] MESSAGE
-```
-
 ### Examples
 
-Management commands:
-```
-/reminder list
-/reminder help
-/reminder remove number:1
-/reminder edit number:1 time:14:30 message:Updated meeting time
-!reminder edit 1 time:14:30 message:Updated meeting time
-```
-
-Creating reminders (slash command):
 ```
 /reminder set date:2025-02-10 time:10:00 timezone:Europe/Paris recurring:daily message:Daily standup
 /reminder set date:2025-02-10 time:14:00 message:@user1 @user2 Team meeting
 ```
 
-Creating reminders (text command):
-```
-!reminder 2025-02-10 14:00 tz:Europe/Paris daily @user1 @user2 Team meeting
-!reminder 2025-02-10 15:30 Project review
-```
-
 ### Additional Options
-- Timezone: Use timezone: parameter or tz: for text command
-- Recurring: Use recurring: parameter (daily/weekly/monthly) or the word for text command
+- Timezone: Use timezone: parameter with region name (e.g., Europe/Paris)
+- Recurring: Use recurring: parameter (daily/weekly/monthly)
 - Mentions: Include @mentions directly in your message
 - Edit: Only specify the fields you want to change when editing

@@ -127,12 +127,6 @@ async def edit_command(
                 else:
                     await interaction.response.send_message("❌ Could not calculate next valid occurrence for recurring reminder!")
                     return
-            
-            server_now = datetime.now(ZoneInfo('UTC'))
-            max_future = server_now + timedelta(days=365*5)
-            if reminder.time > max_future:
-                await interaction.response.send_message("❌ Cannot set reminders more than 5 years in the future!")
-                return
         else:
             await interaction.response.send_message("❌ Invalid recurring option. Use 'daily', 'weekly', 'monthly', or 'none'.")
             return

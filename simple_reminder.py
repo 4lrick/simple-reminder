@@ -13,7 +13,6 @@ from commands.list_reminders import list_command
 from commands.remove_reminder import remove_command
 from commands.edit_reminder import edit_command
 from commands.help import show_help
-from commands.text_reminder import text_reminder
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,13 +22,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 intents = discord.Intents.default()
-intents.message_content = True
 intents.members = True
 intents.presences = False
 
 class ReminderBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix='!', intents=intents)
+        super().__init__(command_prefix=None, intents=intents)
         self.reminder_manager = ReminderManager()
     
     async def setup_hook(self):
@@ -55,8 +53,6 @@ class ReminderBot(commands.Bot):
         cleanup_old_reminders.start()
 
 bot = ReminderBot()
-
-bot.command(name='reminder')(text_reminder)
 
 @tasks.loop(seconds=60)
 async def check_reminders():

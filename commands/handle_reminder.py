@@ -6,53 +6,32 @@ from reminder import Reminder, format_discord_timestamp, calculate_next_occurren
 
 logger = logging.getLogger(__name__)
 
-async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
-    is_interaction = isinstance(ctx, discord.Interaction)
-    async def send_response(content):
-        if is_interaction:
-            if not ctx.response.is_done():
-                await ctx.response.send_message(content)
-            else:
-                await ctx.followup.send(content)
-        else:
-            await ctx.send(content)
-
+async def handle_reminder(interaction: discord.Interaction, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
     try:
         if not message:
-            await send_response("⚠️ Please provide a message for your reminder.")
+            await interaction.response.send_message("⚠️ Please provide a message for your reminder.")
             return
 
-        if not ctx.guild:
-            await send_response("❌ Reminders can only be set in a server, not in DMs.")
+        if not interaction.guild:
+            await interaction.response.send_message("❌ Reminders can only be set in a server, not in DMs.")
             return
 
-        author = ctx.user if is_interaction else ctx.author
-        channel = ctx.channel
+        author = interaction.user
+        channel = interaction.channel
         mentioned_users = [author]
 
-        if is_interaction:
-            if hasattr(ctx, 'data') and 'resolved' in ctx.data and 'users' in ctx.data['resolved']:
-                for user_id in ctx.data['resolved']['users']:
-                    user = await ctx.guild.fetch_member(int(user_id))
-                    if user and user not in mentioned_users:
-                        mentioned_users.append(user)
-        else:
-            for word in message.split():
-                if word.startswith('<@') and word.endswith('>'):
-                    try:
-                        user_id = int(word[2:-1].replace('!', ''))
-                        user = ctx.guild.get_member(user_id)
-                        if user and user not in mentioned_users:
-                            mentioned_users.append(user)
-                    except ValueError:
-                        continue
+        if hasattr(interaction, 'data') and 'resolved' in interaction.data and 'users' in interaction.data['resolved']:
+            for user_id in interaction.data['resolved']['users']:
+                user = await interaction.guild.fetch_member(int(user_id))
+                if user and user not in mentioned_users:
+                    mentioned_users.append(user)
 
         timezone_override = None
         if timezone:
             try:
                 timezone_override = ZoneInfo(timezone)
             except ZoneInfoNotFoundError:
-                await send_response(f"❌ Invalid timezone '{timezone}'. Using server timezone.")
+                await interaction.response.send_message(f"❌ Invalid timezone '{timezone}'. Using server timezone.")
                 return
         
         server_tz = ZoneInfo('UTC')
@@ -64,8 +43,10 @@ async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str
                 if naive_time.year > 9999:
                     raise ValueError("Year must be 9999 or earlier")
             except ValueError as e:
-                example = "!reminder 2025-02-10 15:30 Your message" if not is_interaction else "/reminder date: 2025-02-10 time: 15:30 message: Your message"
-                await send_response(f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD HH:MM'.\nExample: {example}")
+                await interaction.response.send_message(
+                    f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD HH:MM'.\n"
+                    "Example: /reminder date:2025-02-10 time:15:30 message:Your message"
+                )
                 return
 
             local_time = naive_time.replace(tzinfo=timezone_override or server_tz)
@@ -73,20 +54,20 @@ async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str
             
             server_now = datetime.now(server_tz)
             if local_time < server_now and not recurring:
-                await send_response("❌ Cannot set non-recurring reminders in the past!")
+                await interaction.response.send_message("❌ Cannot set non-recurring reminders in the past!")
                 return
 
         except Exception as e:
             logger.error(f"Error parsing date/time: {e}")
-            await send_response("❌ Invalid date/time format. Use 'YYYY-MM-DD HH:MM'.")
+            await interaction.response.send_message("❌ Invalid date/time format. Use 'YYYY-MM-DD HH:MM'.")
             return
 
         if recurring:
             if recurring.lower() == 'none':
-                await send_response("❌ The 'none' option is only available when editing reminders. When creating a new reminder, simply don't specify a recurring option.")
+                await interaction.response.send_message("❌ The 'none' option is only available when editing reminders. When creating a new reminder, simply don't specify a recurring option.")
                 return
             elif recurring.lower() not in ['daily', 'weekly', 'monthly']:
-                await send_response("❌ Invalid recurring option. Use 'daily', 'weekly', or 'monthly'.")
+                await interaction.response.send_message("❌ Invalid recurring option. Use 'daily', 'weekly', or 'monthly'.")
                 return
 
         try:
@@ -111,22 +92,21 @@ async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str
                 if next_time:
                     reminder.time = next_time
                 else:
-                    await send_response("❌ Could not calculate next valid occurrence for recurring reminder!")
+                    await interaction.response.send_message("❌ Could not calculate next valid occurrence for recurring reminder!")
                     return
             
-            client = ctx.client if is_interaction else ctx.bot
-            client.reminder_manager.reminders.append(reminder)
-            client.reminder_manager.save_reminders()
+            interaction.client.reminder_manager.reminders.append(reminder)
+            interaction.client.reminder_manager.save_reminders()
             
             mentions_str = ' '.join(user.mention for user in mentioned_users)
             recurring_str = f" (Recurring: {recurring})" if recurring else ""
             timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-            await send_response(f"✅ Reminder set for {format_discord_timestamp(reminder.time)} for {mentions_str}{recurring_str}{timezone_str}.")
+            await interaction.response.send_message(f"✅ Reminder set for {format_discord_timestamp(reminder.time)} for {mentions_str}{recurring_str}{timezone_str}.")
         except Exception as e:
             logger.error(f"Error creating reminder: {e}")
-            await send_response("❌ An error occurred while creating the reminder. Please try again.")
+            await interaction.response.send_message("❌ An error occurred while creating the reminder. Please try again.")
             return
 
     except Exception as e:
         logger.error(f"Error setting reminder: {e}")
-        await send_response("❌ An error occurred while setting the reminder. Please try again.")
+        await interaction.response.send_message("❌ An error occurred while setting the reminder. Please try again.")
