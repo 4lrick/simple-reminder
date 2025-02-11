@@ -338,6 +338,274 @@ async def reminder_set(
 ):
     await handle_reminder(interaction, date, time, message, timezone, recurring)
 
+async def reminder_autocomplete(interaction: discord.Interaction, current: str) -> list[discord.app_commands.Choice[str]]:
+    choices = []
+    now = datetime.now(ZoneInfo('UTC'))
+    author = interaction.user
+    
+    active_reminders = []
+    for r in reminders:
+        if r.time > now and author in r.targets:
+            active_reminders.append(r)
+        elif r.recurring and author in r.targets:
+            next_time = calculate_next_occurrence(r.time, r.recurring)
+            while next_time and next_time <= now:
+                next_time = calculate_next_occurrence(next_time, r.recurring)
+            if next_time:
+                r.time = next_time
+                active_reminders.append(r)
+    
+    user_reminders = sorted(active_reminders, key=lambda x: x.time)
+    
+    for i, reminder in enumerate(user_reminders, 1):
+        try:
+            local_time = reminder.time.astimezone(ZoneInfo(reminder.timezone))
+            time_str = local_time.strftime("%b %d %H:%M")
+            base_format = f"#{i}: {time_str}"
+            tz_part = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+            rec_part = f" [{reminder.recurring}]" if reminder.recurring else ""
+            
+            message_preview = reminder.message
+            for word in message_preview.split():
+                if word.startswith('<@') and word.endswith('>'):
+                    try:
+                        user_id = int(word[2:-1].replace('!', ''))
+                        user = interaction.guild.get_member(user_id) if interaction.guild else None
+                        if not user:
+                            try:
+                                user = await interaction.client.fetch_user(user_id)
+                            except discord.NotFound:
+                                continue
+                        if user:
+                            name = user.display_name if isinstance(user, discord.Member) else user.name
+                            message_preview = message_preview.replace(word, f"@{name}")
+                    except (ValueError, AttributeError):
+                        continue
+            
+            used_space = len(base_format) + len(tz_part) + len(rec_part) + 5
+            max_msg_len = 90 - used_space
+            
+            if len(message_preview) > max_msg_len:
+                message_preview = message_preview[:max_msg_len-3] + "..."
+            
+            display_name = f"{base_format}{tz_part} - {message_preview}{rec_part}"
+            
+            if len(display_name) > 97:
+                display_name = display_name[:97] + "..."
+            
+            choices.append(discord.app_commands.Choice(name=display_name, value=str(i)))
+        except Exception as e:
+            logger.error(f"Error formatting reminder choice: {e}")
+            continue
+    
+    return choices[:25]
+
+@reminder_group.command(name="edit", description="Edit an existing reminder")
+@app_commands.describe(
+    number="The reminder number to edit",
+    date="New date in YYYY-MM-DD format (optional)",
+    time="New time in HH:MM format (optional)",
+    message="New reminder message (optional)",
+    timezone="New timezone (optional)",
+    recurring="New recurring schedule (optional)"
+)
+@app_commands.autocomplete(
+    number=reminder_autocomplete,
+    timezone=timezone_autocomplete,
+    recurring=recurring_autocomplete
+)
+async def reminder_edit(
+    interaction: discord.Interaction,
+    number: str,
+    date: Optional[str] = None,
+    time: Optional[str] = None,
+    message: Optional[str] = None,
+    timezone: Optional[str] = None,
+    recurring: Optional[str] = None
+):
+    try:
+        index = int(number) - 1
+    except ValueError:
+        await bot.handle_interaction_response(interaction, "❌ Please provide a valid reminder number.")
+        return
+
+    now = datetime.now(ZoneInfo('UTC'))
+    user_reminders = []
+    for r in reminders:
+        if interaction.user in r.targets:
+            if r.time > now:
+                user_reminders.append(r)
+            elif r.recurring:
+                next_time = calculate_next_occurrence(r.time, r.recurring)
+                while next_time and next_time <= now:
+                    next_time = calculate_next_occurrence(next_time, r.recurring)
+                if next_time:
+                    r.time = next_time
+                    user_reminders.append(r)
+    
+    user_reminders.sort(key=lambda x: x.time)
+
+    if not user_reminders:
+        await bot.handle_interaction_response(interaction, "You have no active reminders to edit.")
+        return
+
+    if index < 0 or index >= len(user_reminders):
+        await bot.handle_interaction_response(interaction, f"❌ Invalid reminder number. Please use a number between 1 and {len(user_reminders)}.")
+        return
+
+    reminder = user_reminders[index]
+
+    if reminder.author != interaction.user and not interaction.user.guild_permissions.manage_messages:
+        await bot.handle_interaction_response(interaction, "❌ You can only edit reminders that you created.")
+        return
+
+    try:
+        old_time = reminder.time
+        old_timezone = reminder.timezone
+        old_message = reminder.message
+        old_recurring = reminder.recurring
+
+        if timezone:
+            new_timezone = get_timezone(timezone)
+            if not new_timezone:
+                await bot.handle_interaction_response(interaction, f"❌ Invalid timezone '{timezone}'.")
+                return
+            reminder.timezone = new_timezone.key
+
+        if date or time:
+            current_time = reminder.time.astimezone(ZoneInfo(reminder.timezone))
+            new_date = date or current_time.strftime('%Y-%m-%d')
+            new_time = time or current_time.strftime('%H:%M')
+            
+            try:
+                naive_time = datetime.strptime(f"{new_date} {new_time}", '%Y-%m-%d %H:%M')
+                if naive_time.year < 1970:
+                    raise ValueError("Year must be 1970 or later")
+                if naive_time.year > 9999:
+                    raise ValueError("Year must be 9999 or earlier")
+                
+                local_time = naive_time.replace(tzinfo=ZoneInfo(reminder.timezone))
+                reminder.time = local_time.astimezone(ZoneInfo('UTC'))
+                
+                server_now = datetime.now(ZoneInfo('UTC'))
+                if reminder.time < server_now and not (recurring or reminder.recurring):
+                    reminder.time = old_time
+                    await bot.handle_interaction_response(interaction, "❌ Cannot set non-recurring reminders in the past!")
+                    return
+
+                max_future = server_now + timedelta(days=365*5)
+                if reminder.time > max_future and not (recurring or reminder.recurring):
+                    reminder.time = old_time
+                    await bot.handle_interaction_response(interaction, "❌ Cannot set reminders more than 5 years in the future!")
+                    return
+
+            except ValueError as e:
+                await bot.handle_interaction_response(interaction, f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD HH:MM'.")
+                return
+
+        if recurring is not None:
+            if recurring.lower() not in ['daily', 'weekly', 'monthly', '']:
+                await bot.handle_interaction_response(interaction, "❌ Invalid recurring option. Use 'daily', 'weekly', or 'monthly'.")
+                return
+            reminder.recurring = recurring.lower() if recurring else None
+
+        if message:
+            reminder.message = message
+
+        if reminder.time < now and (reminder.recurring or recurring):
+            next_time = calculate_next_occurrence(
+                reminder.time,
+                reminder.recurring,
+                ZoneInfo(reminder.timezone)
+            )
+            while next_time and next_time <= now:
+                next_time = calculate_next_occurrence(next_time, reminder.recurring, ZoneInfo(reminder.timezone))
+            if next_time:
+                reminder.time = next_time
+            else:
+                reminder.time = old_time
+                reminder.timezone = old_timezone
+                reminder.message = old_message
+                reminder.recurring = old_recurring
+                await bot.handle_interaction_response(interaction, "❌ Could not calculate next valid occurrence for recurring reminder!")
+                return
+
+        save_reminders()
+
+        changes = []
+        if date or time:
+            changes.append("time")
+        if timezone:
+            changes.append("timezone")
+        if message:
+            changes.append("message")
+        if recurring is not None:
+            changes.append("recurrence")
+
+        if not changes:
+            await bot.handle_interaction_response(interaction, "No changes were made to the reminder.")
+            return
+
+        mentions_str = ' '.join(user.mention for user in reminder.targets)
+        recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
+        timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+        
+        await bot.handle_interaction_response(
+            interaction,
+            f"✅ Updated reminder {', '.join(changes)} for {mentions_str}.\n" + 
+            f"New reminder set for {format_discord_timestamp(reminder.time)}{timezone_str}: {reminder.message}{recurring_str}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error editing reminder: {e}")
+        await bot.handle_interaction_response(interaction, "❌ An error occurred while editing the reminder. Please try again.")
+
+@bot.command(name='edit')
+async def text_edit(ctx, number: str = None, *, args: str = None):
+    if not number or not args:
+        await ctx.send("❌ Please provide both a reminder number and what to edit. Example: !edit 1 time:14:30 message:New message")
+        return
+
+    try:
+        params = {}
+        current_key = None
+        current_value = []
+
+        args_split = args.split()
+        for part in args_split:
+            if ':' in part and part.split(':')[0] in ['date', 'time', 'tz', 'timezone', 'message', 'recurring']:
+                if current_key and current_value:
+                    params[current_key] = ' '.join(current_value)
+                key = part.split(':')[0]
+                value = ':'.join(part.split(':')[1:])
+                if key == 'tz':
+                    key = 'timezone'
+                current_key = key
+                current_value = [value] if value else []
+            elif current_key:
+                current_value.append(part)
+            else:
+                await ctx.send("❌ Invalid format. Use key:value pairs (date:, time:, tz:, message:, recurring:)")
+                return
+
+        if current_key and current_value:
+            params[current_key] = ' '.join(current_value)
+
+        interaction = await discord.Interaction.from_context(ctx)
+        await reminder_edit(
+            interaction,
+            number,
+            params.get('date'),
+            params.get('time'),
+            params.get('message'),
+            params.get('timezone'),
+            params.get('recurring')
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing edit command: {e}")
+        await ctx.send("❌ An error occurred while editing the reminder. Please try again.")
+
 class ReminderBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix='!', intents=intents)
