@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Create data directory and set permissions
 RUN mkdir -p /app/data && \
     chown -R botuser:botuser /app
 
