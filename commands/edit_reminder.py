@@ -104,11 +104,6 @@ async def edit_command(
                 await interaction.response.send_message("❌ Cannot set non-recurring reminders in the past!")
                 return
 
-            max_future = server_now + timedelta(days=365*5)
-            if reminder.time > max_future and not reminder.recurring:
-                await interaction.response.send_message("❌ Cannot set reminders more than 5 years in the future!")
-                return
-                
         except ValueError as e:
             await interaction.response.send_message(f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD' for date and 'HH:MM' for time.")
             return

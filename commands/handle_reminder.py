@@ -76,11 +76,6 @@ async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str
                 await send_response("❌ Cannot set non-recurring reminders in the past!")
                 return
 
-            max_future = server_now + timedelta(days=365*5)
-            if local_time > max_future and not recurring:
-                await send_response("❌ Cannot set reminders more than 5 years in the future!")
-                return
-
         except Exception as e:
             logger.error(f"Error parsing date/time: {e}")
             await send_response("❌ Invalid date/time format. Use 'YYYY-MM-DD HH:MM'.")
