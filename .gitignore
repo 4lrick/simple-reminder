@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+myenv/
 env/
 build/
 develop-eggs/
@@ -20,7 +21,6 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-myenv/
 
 # Environment variables
 .env
