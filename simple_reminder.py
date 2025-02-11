@@ -961,6 +961,7 @@ async def show_help(ctx):
 /reminder list
 /reminder help
 /reminder remove number:<number>
+/reminder edit number:<number> [date:YYYY-MM-DD] [time:HH:MM] [message:MESSAGE] [timezone:ZONE] [recurring:TYPE]
 /reminder set date:YYYY-MM-DD time:HH:MM message:MESSAGE [timezone:ZONE] [recurring:TYPE]
 ```
 
@@ -969,6 +970,7 @@ async def show_help(ctx):
 !reminder list
 !reminder help
 !reminder remove NUMBER
+!edit NUMBER date:YYYY-MM-DD time:HH:MM message:MESSAGE timezone:ZONE recurring:TYPE
 !reminder YYYY-MM-DD HH:MM [tz:ZONE] [TYPE] [@users] MESSAGE
 ```
 
@@ -982,6 +984,12 @@ List reminders:
 Remove reminder:
 ```
 /reminder remove number:1
+```
+
+Edit a reminder:
+```
+/reminder edit number:1 time:14:30 message:Updated meeting time
+!edit 1 time:14:30 message:Updated meeting time
 ```
 
 Create a reminder with timezone and recurring:
@@ -1011,7 +1019,9 @@ Create a text command reminder:
   Slash command: @Username or type in message
 
 • **Time Format:** Always use 24-hour format (HH:MM)
-  Example: 09:00 (for 9 AM), 14:30 (for 2:30 PM)"""
+  Example: 09:00 (for 9 AM), 14:30 (for 2:30 PM)
+
+• **Edit Command:** Both date and time are optional when editing. Only specify what you want to change."""
 
     if is_interaction:
         await bot.handle_interaction_response(ctx, help_text)
