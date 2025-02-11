@@ -92,6 +92,7 @@ class Reminder:
         self.channel = channel
         self.recurring = recurring
         self.timezone = timezone or 'UTC'
+        self.guild_id = channel.guild.id if channel.guild else None
     
     def to_dict(self):
         return {
@@ -100,6 +101,7 @@ class Reminder:
             'target_ids': [user.id for user in self.targets],
             'message': self.message,
             'channel_id': self.channel.id,
+            'guild_id': self.guild_id,
             'recurring': self.recurring,
             'timezone': self.timezone
         }
@@ -124,6 +126,7 @@ class Reminder:
         
         timezone = data.get('timezone', 'UTC')
         reminder = cls(time, author, targets, data['message'], channel, data['recurring'], timezone)
+        reminder.guild_id = data.get('guild_id')
         
         now = datetime.now(ZoneInfo('UTC'))
         if reminder.time <= now and reminder.recurring:
@@ -303,6 +306,43 @@ async def remove_number_autocomplete(interaction: discord.Interaction, current: 
     
     return choices[:25]
 
+class ReminderBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix='!', intents=intents)
+        self.interaction_responses = {}
+    
+    async def setup_hook(self):
+        self.tree.add_command(reminder_group)
+        await self.tree.sync()
+    
+    async def on_ready(self):
+        logger.info(f'Logged in as {self.user}')
+        await load_reminders()
+        check_reminders.start()
+        cleanup_old_reminders.start()
+
+    async def handle_interaction_response(self, interaction, content, embed=None):
+        try:
+            if not interaction.response.is_done():
+                if embed:
+                    await interaction.response.send_message(embed=embed)
+                else:
+                    await interaction.response.send_message(content)
+            else:
+                if embed:
+                    await interaction.followup.send(embed=embed)
+                else:
+                    await interaction.followup.send(content)
+        except Exception as e:
+            logger.error(f"Failed to send interaction response: {e}")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("An error occurred while processing your request.")
+            except:
+                pass
+
+bot = ReminderBot()
+
 reminder_group = app_commands.Group(name="reminder", description="Reminder commands")
 
 @reminder_group.command(name="list", description="List all active reminders")
@@ -342,9 +382,13 @@ async def reminder_autocomplete(interaction: discord.Interaction, current: str) 
     choices = []
     now = datetime.now(ZoneInfo('UTC'))
     author = interaction.user
+    guild_id = interaction.guild.id if interaction.guild else None
     
     active_reminders = []
     for r in reminders:
+        if r.guild_id != guild_id:
+            continue
+            
         if r.time > now and author in r.targets:
             active_reminders.append(r)
         elif r.recurring and author in r.targets:
@@ -430,8 +474,13 @@ async def reminder_edit(
         return
 
     now = datetime.now(ZoneInfo('UTC'))
+    guild_id = interaction.guild.id if interaction.guild else None
     user_reminders = []
+    
     for r in reminders:
+        if r.guild_id != guild_id:
+            continue
+            
         if interaction.user in r.targets:
             if r.time > now:
                 user_reminders.append(r)
@@ -446,7 +495,7 @@ async def reminder_edit(
     user_reminders.sort(key=lambda x: x.time)
 
     if not user_reminders:
-        await bot.handle_interaction_response(interaction, "You have no active reminders to edit.")
+        await bot.handle_interaction_response(interaction, "You have no active reminders in this server.")
         return
 
     if index < 0 or index >= len(user_reminders):
@@ -474,8 +523,26 @@ async def reminder_edit(
 
         if date or time:
             current_time = reminder.time.astimezone(ZoneInfo(reminder.timezone))
-            new_date = date or current_time.strftime('%Y-%m-%d')
-            new_time = time or current_time.strftime('%H:%M')
+            
+            if date:
+                try:
+                    datetime.strptime(date, '%Y-%m-%d')
+                except ValueError as e:
+                    await bot.handle_interaction_response(interaction, "❌ Invalid date format. Use 'YYYY-MM-DD'.")
+                    return
+                new_date = date
+            else:
+                new_date = current_time.strftime('%Y-%m-%d')
+            
+            if time:
+                try:
+                    datetime.strptime(time, '%H:%M')
+                except ValueError as e:
+                    await bot.handle_interaction_response(interaction, "❌ Invalid time format. Use 'HH:MM' (24-hour format).")
+                    return
+                new_time = time
+            else:
+                new_time = current_time.strftime('%H:%M')
             
             try:
                 naive_time = datetime.strptime(f"{new_date} {new_time}", '%Y-%m-%d %H:%M')
@@ -500,7 +567,7 @@ async def reminder_edit(
                     return
 
             except ValueError as e:
-                await bot.handle_interaction_response(interaction, f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD HH:MM'.")
+                await bot.handle_interaction_response(interaction, f"❌ Invalid date/time: {str(e)}")
                 return
 
         if recurring is not None:
@@ -591,6 +658,20 @@ async def text_edit(ctx, number: str = None, *, args: str = None):
         if current_key and current_value:
             params[current_key] = ' '.join(current_value)
 
+        if 'date' in params:
+            try:
+                datetime.strptime(params['date'], '%Y-%m-%d')
+            except ValueError:
+                await ctx.send("❌ Invalid date format. Use 'YYYY-MM-DD'")
+                return
+
+        if 'time' in params:
+            try:
+                datetime.strptime(params['time'], '%H:%M')
+            except ValueError:
+                await ctx.send("❌ Invalid time format. Use 'HH:MM' (24-hour format)")
+                return
+
         interaction = await discord.Interaction.from_context(ctx)
         await reminder_edit(
             interaction,
@@ -606,43 +687,6 @@ async def text_edit(ctx, number: str = None, *, args: str = None):
         logger.error(f"Error processing edit command: {e}")
         await ctx.send("❌ An error occurred while editing the reminder. Please try again.")
 
-class ReminderBot(commands.Bot):
-    def __init__(self):
-        super().__init__(command_prefix='!', intents=intents)
-        self.interaction_responses = {}
-    
-    async def setup_hook(self):
-        self.tree.add_command(reminder_group)
-        await self.tree.sync()
-    
-    async def on_ready(self):
-        logger.info(f'Logged in as {self.user}')
-        await load_reminders()
-        check_reminders.start()
-        cleanup_old_reminders.start()
-
-    async def handle_interaction_response(self, interaction, content, embed=None):
-        try:
-            if not interaction.response.is_done():
-                if embed:
-                    await interaction.response.send_message(embed=embed)
-                else:
-                    await interaction.response.send_message(content)
-            else:
-                if embed:
-                    await interaction.followup.send(embed=embed)
-                else:
-                    await interaction.followup.send(content)
-        except Exception as e:
-            logger.error(f"Failed to send interaction response: {e}")
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message("An error occurred while processing your request.")
-            except:
-                pass
-
-bot = ReminderBot()
-
 async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
     is_interaction = isinstance(ctx, discord.Interaction)
     async def send_response(content):
@@ -657,6 +701,10 @@ async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str
     try:
         if not message:
             await send_response("⚠️ Please provide a message for your reminder.")
+            return
+
+        if not ctx.guild:
+            await send_response("❌ Reminders can only be set in a server, not in DMs.")
             return
 
         author = ctx.user if is_interaction else ctx.author
@@ -708,7 +756,7 @@ async def handle_reminder(ctx, date: str, time: str, message: str, timezone: str
                 await send_response("❌ Cannot set non-recurring reminders in the past!")
                 return
 
-            max_future = server_now + timedelta(days=365*5)  # 5 years
+            max_future = server_now + timedelta(days=365*5)
             if local_time > max_future and not recurring:
                 await send_response("❌ Cannot set reminders more than 5 years in the future!")
                 return
@@ -815,6 +863,7 @@ async def text_reminder(ctx, action: str = None, *, args: str = None):
 async def remove_reminder(ctx, args):
     is_interaction = isinstance(ctx, discord.Interaction)
     author = ctx.user if is_interaction else ctx.author
+    guild_id = ctx.guild.id if ctx.guild else None
     
     try:
         index = int(args) - 1
@@ -829,6 +878,9 @@ async def remove_reminder(ctx, args):
     now = datetime.now(ZoneInfo('UTC'))
     user_reminders = []
     for r in reminders:
+        if r.guild_id != guild_id:
+            continue
+            
         if author in r.targets:
             if r.time > now:
                 user_reminders.append(r)
@@ -878,8 +930,12 @@ async def list_reminders(ctx):
     is_interaction = isinstance(ctx, discord.Interaction)
     active_reminders = []
     now = datetime.now(ZoneInfo('UTC'))
+    guild_id = ctx.guild.id if ctx.guild else None
     
     for r in reminders:
+        if r.guild_id != guild_id:
+            continue
+            
         if r.time > now:
             active_reminders.append(r)
         elif r.recurring:
@@ -892,9 +948,9 @@ async def list_reminders(ctx):
 
     if not active_reminders:
         if is_interaction:
-            await bot.handle_interaction_response(ctx, "No active reminders.")
+            await bot.handle_interaction_response(ctx, "No active reminders in this server.")
         else:
-            await ctx.send("No active reminders.")
+            await ctx.send("No active reminders in this server.")
         return
 
     user_reminders = {}
@@ -905,7 +961,7 @@ async def list_reminders(ctx):
             user_reminders[target].append(reminder)
 
     embed = discord.Embed(
-        title="📋 Active Reminders",
+        title=f"📋 Active Reminders for {ctx.guild.name}" if ctx.guild else "📋 Active Reminders",
         color=discord.Color.blue()
     )
 
