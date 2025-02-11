@@ -39,7 +39,7 @@ DISCORD_TOKEN=your_token_here docker compose up -d
 !reminder list
 !reminder help
 !reminder remove NUMBER
-!edit NUMBER date:YYYY-MM-DD time:HH:MM message:MESSAGE timezone:ZONE recurring:TYPE
+!reminder edit NUMBER date:YYYY-MM-DD time:HH:MM message:MESSAGE timezone:ZONE recurring:TYPE
 !reminder YYYY-MM-DD HH:MM [tz:ZONE] [TYPE] [@users] MESSAGE
 ```
 
@@ -51,7 +51,7 @@ Management commands:
 /reminder help
 /reminder remove number:1
 /reminder edit number:1 time:14:30 message:Updated meeting time
-!edit 1 time:14:30 message:Updated meeting time
+!reminder edit 1 time:14:30 message:Updated meeting time
 ```
 
 Creating reminders (slash command):
