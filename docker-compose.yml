@@ -1,0 +1,7 @@
+services:
+  simple-reminder:
+    image: ghcr.io/4lrick/simple-reminder:main
+    container_name: simple-reminder
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+    restart: unless-stopped
