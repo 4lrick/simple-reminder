@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY src/ ./src/
+COPY simple_reminder.py .
 
 RUN mkdir -p /app/data && \
     chown -R botuser:botuser /app

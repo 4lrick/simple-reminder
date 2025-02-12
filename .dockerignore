@@ -1,9 +1,15 @@
+# Git
+.git/
+.gitignore
+.github/
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+myenv/
 env/
 build/
 develop-eggs/
@@ -21,15 +27,21 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
-venv/
-ENV/
-myenv/
+# Environment variables
+.env
+.env.*
 
-# Data and Logs
+# Data files
 data/
-*.log
 reminders.json
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Documentation
+README.md
+LICENSE
 
 # IDE
 .idea/
@@ -37,6 +49,6 @@ reminders.json
 *.swp
 *.swo
 
-# Git
-.git
-.gitignore
+# OS
+.DS_Store
+Thumbs.db
