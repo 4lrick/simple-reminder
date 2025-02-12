@@ -1,7 +1,6 @@
 # Simple Reminder Bot
 
-[![Tests](https://github.com/4lrick/simple-reminder/actions/workflows/run-tests.yml/badge.svg)](https://github.com/4lrick/simple-reminder/actions/workflows/run-tests.yml)
-[![Docker Build](https://github.com/4lrick/simple-reminder/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/4lrick/simple-reminder/actions/workflows/docker-publish.yml)
+[![CI/CD Pipeline](https://github.com/4lrick/simple-reminder/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/4lrick/simple-reminder/actions/workflows/docker-publish.yml)
 
 A Discord bot that manages reminders with features like:
 - One-time and recurring reminders
@@ -79,8 +78,7 @@ python -m pytest tests/ -v
 
 ### CI/CD
 
-The project uses GitHub Actions for:
+The project uses GitHub Actions for automated CI/CD:
 - Running tests on Python 3.11, 3.12, and 3.13
-- Building and publishing Docker images
-
-Pull requests must pass all tests before being merged.
+- Building and publishing multi-arch Docker images
+- Pull requests must pass all tests before being merged
