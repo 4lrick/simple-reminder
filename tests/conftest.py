@@ -1,0 +1,57 @@
+import pytest
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import discord
+from src.reminder import ReminderManager
+
+class MockUser:
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+        self.display_name = name
+        self.mention = f"<@{id}>"
+
+class MockChannel:
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+        self.guild = MockGuild(1, "Test Guild")
+        self._messages = []
+    
+    async def send(self, content):
+        self._messages.append(content)
+        return MockMessage(content=content)
+
+class MockGuild:
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+
+class MockMessage:
+    def __init__(self, content):
+        self.content = content
+
+@pytest.fixture
+def mock_user():
+    return MockUser(123, "TestUser")
+
+@pytest.fixture
+def mock_channel():
+    return MockChannel(456, "test-channel")
+
+@pytest.fixture
+def reminder_manager():
+    return ReminderManager()
+
+@pytest.fixture
+def mock_reminder_data():
+    return {
+        "time": datetime.now(ZoneInfo("UTC")).isoformat(),
+        "author_id": 123,
+        "target_ids": [123],
+        "message": "Test reminder",
+        "channel_id": 456,
+        "guild_id": 1,
+        "recurring": None,
+        "timezone": "UTC"
+    }

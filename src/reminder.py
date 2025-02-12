@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from typing import List, Optional
 import discord
 from discord.ext import commands
-from src.config import SAVE_FILE
+import src.config
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +53,20 @@ class ReminderManager:
     def save_reminders(self):
         data = [reminder.to_dict() for reminder in self.reminders]
         try:
-            with open(SAVE_FILE, 'w') as f:
+            save_file = src.config.SAVE_FILE
+            with open(save_file, 'w') as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving reminders: {e}")
     
     async def load_reminders(self, bot):
         import os
-        if not os.path.exists(SAVE_FILE):
+        save_file = src.config.SAVE_FILE
+        if not os.path.exists(save_file):
             return
         
         try:
-            with open(SAVE_FILE, 'r') as f:
+            with open(save_file, 'r') as f:
                 data = json.load(f)
             
             for reminder_data in data:
@@ -72,7 +74,7 @@ class ReminderManager:
                 if reminder:
                     self.reminders.append(reminder)
             
-            logger.info(f"Loaded {len(self.reminders)} reminders from {SAVE_FILE}")
+            logger.info(f"Loaded {len(self.reminders)} reminders from {save_file}")
         except Exception as e:
             logger.error(f"Error loading reminders: {e}")
 

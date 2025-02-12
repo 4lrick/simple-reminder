@@ -1,5 +1,8 @@
 # Simple Reminder Bot
 
+[![Tests](https://github.com/4lrick/simple-reminder/actions/workflows/run-tests.yml/badge.svg)](https://github.com/4lrick/simple-reminder/actions/workflows/run-tests.yml)
+[![Docker Build](https://github.com/4lrick/simple-reminder/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/4lrick/simple-reminder/actions/workflows/docker-publish.yml)
+
 A Discord bot that manages reminders with features like:
 - One-time and recurring reminders
 - 15-minute advance notifications
@@ -59,3 +62,25 @@ docker restart simple-reminder
 - Recurring: Use recurring: parameter (daily/weekly/monthly)
 - Mentions: Include @mentions directly in your message
 - Edit: Only specify the fields you want to change when editing
+
+## Development
+
+### Testing
+
+The project uses pytest for testing. To run the tests locally:
+
+```bash
+# Install dev dependencies
+pip install -r requirements.txt
+
+# Run tests
+python -m pytest tests/ -v
+```
+
+### CI/CD
+
+The project uses GitHub Actions for:
+- Running tests on Python 3.11, 3.12, and 3.13
+- Building and publishing Docker images
+
+Pull requests must pass all tests before being merged.
