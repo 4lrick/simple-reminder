@@ -27,16 +27,6 @@ DISCORD_TOKEN=your_token_here docker compose up -d
 
 The bot stores all reminders in `/app/data/reminders.json` which is persisted using a Docker named volume `reminder-data`. This ensures your reminders survive container updates and restarts.
 
-To backup your reminders:
-```bash
-# Copy reminders from the container
-docker cp simple-reminder:/app/data/reminders.json ./reminders_backup.json
-
-# To restore from backup
-docker cp ./reminders_backup.json simple-reminder:/app/data/reminders.json
-docker restart simple-reminder
-```
-
 ## Usage
 
 ### Commands
@@ -75,10 +65,3 @@ pip install -r requirements.txt
 # Run tests
 python -m pytest tests/ -v
 ```
-
-### CI/CD
-
-The project uses GitHub Actions for automated CI/CD:
-- Running tests on Python 3.11, 3.12, and 3.13
-- Building and publishing multi-arch Docker images
-- Pull requests must pass all tests before being merged
