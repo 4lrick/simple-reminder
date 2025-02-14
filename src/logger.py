@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 import sys
 
 def setup_logger():
@@ -14,7 +15,12 @@ def setup_logger():
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    file_handler = logging.FileHandler('data/bot.log')
+    file_handler = RotatingFileHandler(
+        'data/bot.log',
+        maxBytes=5 * 1024 * 1024,
+        backupCount=3,
+        encoding='utf-8'
+    )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
