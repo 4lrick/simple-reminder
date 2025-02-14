@@ -46,9 +46,67 @@ def calculate_next_occurrence(current_time: datetime, recurrence_type: str, targ
     
     return next_time
 
+class Reminder:
+    def __init__(self, time, author, targets, message, channel, recurring=None, timezone=None):
+        self.time = time
+        self.author = author
+        self.targets = targets
+        self.message = message
+        self.channel = channel
+        self.recurring = recurring
+        self.timezone = timezone or 'UTC'
+        self.guild_id = channel.guild.id if channel.guild else None
+    
+    def to_dict(self):
+        return {
+            'time': self.time.isoformat(),
+            'author_id': self.author.id,
+            'target_ids': [user.id for user in self.targets],
+            'message': self.message,
+            'channel_id': self.channel.id,
+            'guild_id': self.guild_id,
+            'recurring': self.recurring,
+            'timezone': self.timezone
+        }
+    
+    @classmethod
+    async def from_dict(cls, data, bot):
+        time = datetime.fromisoformat(data['time'])
+        author = await bot.fetch_user(data['author_id'])
+        targets = []
+        for user_id in data['target_ids']:
+            try:
+                user = await bot.fetch_user(user_id)
+                targets.append(user)
+            except discord.NotFound:
+                continue
+        channel = bot.get_channel(data['channel_id'])
+        if not channel:
+            try:
+                channel = await bot.fetch_channel(data['channel_id'])
+            except (discord.NotFound, discord.Forbidden):
+                return None
+        
+        timezone = data.get('timezone', 'UTC')
+        reminder = cls(time, author, targets, data['message'], channel, data['recurring'], timezone)
+        reminder.guild_id = data.get('guild_id')
+        
+        now = datetime.now(ZoneInfo('UTC'))
+        if reminder.time <= now and reminder.recurring:
+            next_time = calculate_next_occurrence(reminder.time, reminder.recurring)
+            while next_time and next_time <= now:
+                next_time = calculate_next_occurrence(next_time, reminder.recurring)
+            if next_time:
+                reminder.time = next_time
+                return reminder
+        elif reminder.time > now or reminder.recurring:
+            return reminder
+        return None
+
 class ReminderManager:
     def __init__(self):
         self.reminders: List[Reminder] = []
+        self._retries = {}
     
     def save_reminders(self):
         data = [reminder.to_dict() for reminder in self.reminders]
@@ -69,14 +127,83 @@ class ReminderManager:
             with open(save_file, 'r') as f:
                 data = json.load(f)
             
+            valid_reminders = []
             for reminder_data in data:
-                reminder = await Reminder.from_dict(reminder_data, bot)
-                if reminder:
-                    self.reminders.append(reminder)
+                try:
+                    reminder = await self._load_reminder(reminder_data, bot)
+                    if reminder:
+                        valid_reminders.append(reminder)
+                except Exception as e:
+                    logger.error(f"Error loading reminder: {e}")
             
+            self.reminders = valid_reminders
             logger.info(f"Loaded {len(self.reminders)} reminders from {save_file}")
+            
+            self.save_reminders()
         except Exception as e:
             logger.error(f"Error loading reminders: {e}")
+    
+    async def _load_reminder(self, data: dict, bot, max_retries: int = 3) -> Optional[Reminder]:
+        """Load a single reminder with retry logic for network operations."""
+        retry_key = f"{data['channel_id']}_{data['author_id']}"
+        if self._retries.get(retry_key, 0) >= max_retries:
+            logger.error(f"Max retries exceeded for reminder in channel {data['channel_id']}")
+            return None
+        
+        try:
+            time = datetime.fromisoformat(data['time'])
+            author = await bot.fetch_user(data['author_id'])
+            if not author:
+                return None
+            
+            targets = []
+            for user_id in data['target_ids']:
+                try:
+                    user = await bot.fetch_user(user_id)
+                    if user:
+                        targets.append(user)
+                except discord.NotFound:
+                    logger.warning(f"Target user {user_id} not found")
+                except discord.HTTPException as e:
+                    self._retries[retry_key] = self._retries.get(retry_key, 0) + 1
+                    raise e
+            
+            if not targets:
+                return None
+            
+            channel = bot.get_channel(data['channel_id'])
+            if not channel:
+                try:
+                    channel = await bot.fetch_channel(data['channel_id'])
+                except (discord.NotFound, discord.Forbidden):
+                    logger.warning(f"Channel {data['channel_id']} not found or not accessible")
+                    return None
+                except discord.HTTPException as e:
+                    self._retries[retry_key] = self._retries.get(retry_key, 0) + 1
+                    raise e
+            
+            timezone = data.get('timezone', 'UTC')
+            reminder = Reminder(time, author, targets, data['message'], channel, data['recurring'], timezone)
+            reminder.guild_id = data.get('guild_id')
+            
+            now = datetime.now(ZoneInfo('UTC'))
+            if reminder.time <= now and reminder.recurring:
+                next_time = calculate_next_occurrence(reminder.time, reminder.recurring)
+                while next_time and next_time <= now:
+                    next_time = calculate_next_occurrence(next_time, reminder.recurring)
+                if next_time:
+                    reminder.time = next_time
+                    return reminder
+            elif reminder.time > now or reminder.recurring:
+                return reminder
+            
+            return None
+            
+        except discord.HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error loading reminder: {e}")
+            return None
 
 class Reminder:
     def __init__(self, time, author, targets, message, channel, recurring=None, timezone=None):

@@ -14,8 +14,13 @@ COPY src/ ./src/
 COPY simple_reminder.py .
 
 RUN mkdir -p /app/data && \
-    chown -R botuser:botuser /app
+    chown -R botuser:botuser /app && \
+    chmod -R 555 /app/src && \
+    chmod 555 /app/simple_reminder.py && \
+    chmod 777 /app/data
 
 USER botuser
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
 CMD ["python", "simple_reminder.py"]

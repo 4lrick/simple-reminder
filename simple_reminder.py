@@ -56,79 +56,98 @@ bot = ReminderBot()
 
 @tasks.loop(seconds=60)
 async def check_reminders():
-    now = datetime.now(ZoneInfo('UTC'))
-    seconds_until_next_minute = 60 - now.second
-    if seconds_until_next_minute > 0:
-        await asyncio.sleep(seconds_until_next_minute)
-    
-    now = datetime.now(ZoneInfo('UTC'))
-    logger.debug(f"Checking reminders at {now}")
-    
-    to_remove = []
-    to_add = []
+    while True:
+        now = datetime.now(ZoneInfo('UTC'))
+        next_reminder_time = None
+        
+        for reminder in bot.reminder_manager.reminders:
+            warning_time = reminder.time - timedelta(minutes=15)
+            if warning_time > now and (next_reminder_time is None or warning_time < next_reminder_time):
+                next_reminder_time = warning_time
+            if reminder.time > now and (next_reminder_time is None or reminder.time < next_reminder_time):
+                next_reminder_time = reminder.time
+        
+        if next_reminder_time is None:
+            await asyncio.sleep(60)
+            continue
+        
+        sleep_duration = (next_reminder_time - now).total_seconds()
+        if sleep_duration > 0:
+            await asyncio.sleep(sleep_duration)
+        
+        now = datetime.now(ZoneInfo('UTC'))
+        to_remove = []
+        to_add = []
 
-    for reminder in bot.reminder_manager.reminders:
-        if now >= reminder.time - timedelta(minutes=15) and now < reminder.time - timedelta(minutes=14):
-            for user in reminder.targets:
+        for reminder in bot.reminder_manager.reminders:
+            if now >= reminder.time - timedelta(minutes=15) and now < reminder.time - timedelta(minutes=14):
+                for user in reminder.targets:
+                    timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                    try:
+                        await reminder.channel.send(
+                            f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
+                        )
+                    except (discord.NotFound, discord.Forbidden):
+                        logger.warning(f"Could not send advance notification to channel {reminder.channel.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to send advance notification: {e}")
+            
+            if now >= reminder.time:
+                targets_mentions = ' '.join(user.mention for user in reminder.targets)
                 timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
                 try:
                     await reminder.channel.send(
-                        f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
+                        f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
                     )
+                except (discord.NotFound, discord.Forbidden):
+                    logger.warning(f"Could not send reminder to channel {reminder.channel.id}")
+                    if not reminder.recurring:
+                        to_remove.append(reminder)
+                        continue
                 except Exception as e:
-                    logger.error(f"Failed to send advance notification: {e}")
-            
-        if now >= reminder.time:
-            targets_mentions = ' '.join(user.mention for user in reminder.targets)
-            timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-            try:
-                await reminder.channel.send(
-                    f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to send reminder: {e}")
-                if not reminder.recurring:
-                    continue
-            
-            if reminder.recurring:
-                try:
-                    next_time = calculate_next_occurrence(
-                        reminder.time, 
-                        reminder.recurring,
-                        ZoneInfo(reminder.timezone)
-                    )
-                    while next_time and next_time <= now:
+                    logger.error(f"Failed to send reminder: {e}")
+                    if not reminder.recurring:
+                        continue
+                
+                if reminder.recurring:
+                    try:
                         next_time = calculate_next_occurrence(
-                            next_time, 
+                            reminder.time, 
                             reminder.recurring,
                             ZoneInfo(reminder.timezone)
                         )
-                    if next_time:
-                        new_reminder = reminder.__class__(
-                            next_time,
-                            reminder.author,
-                            reminder.targets,
-                            reminder.message,
-                            reminder.channel,
-                            reminder.recurring,
-                            reminder.timezone
-                        )
-                        to_add.append(new_reminder)
-                    else:
-                        logger.error(f"Invalid next time calculated for recurring reminder")
-                except Exception as e:
-                    logger.error(f"Failed to calculate next recurring time: {e}")
-            
-            to_remove.append(reminder)
+                        while next_time and next_time <= now:
+                            next_time = calculate_next_occurrence(
+                                next_time, 
+                                reminder.recurring,
+                                ZoneInfo(reminder.timezone)
+                            )
+                        if next_time:
+                            new_reminder = reminder.__class__(
+                                next_time,
+                                reminder.author,
+                                reminder.targets,
+                                reminder.message,
+                                reminder.channel,
+                                reminder.recurring,
+                                reminder.timezone
+                            )
+                            to_add.append(new_reminder)
+                        else:
+                            logger.error(f"Invalid next time calculated for recurring reminder")
+                    except Exception as e:
+                        logger.error(f"Failed to calculate next recurring time: {e}")
+                
+                to_remove.append(reminder)
 
-    for reminder in to_remove:
-        try:
-            bot.reminder_manager.reminders.remove(reminder)
-        except ValueError:
-            logger.error(f"Failed to remove reminder: {reminder.time} - {reminder.message}")
-    
-    bot.reminder_manager.reminders.extend(to_add)
-    bot.reminder_manager.save_reminders()
+        for reminder in to_remove:
+            try:
+                bot.reminder_manager.reminders.remove(reminder)
+            except ValueError:
+                logger.error(f"Failed to remove reminder: {reminder.time} - {reminder.message}")
+        
+        bot.reminder_manager.reminders.extend(to_add)
+        bot.reminder_manager.save_reminders()
 
 @tasks.loop(hours=24)
 async def cleanup_old_reminders():
