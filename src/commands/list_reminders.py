@@ -2,11 +2,20 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
+import logging
 from src.reminder import format_discord_timestamp, calculate_next_occurrence
+
+logger = logging.getLogger('reminder_bot.commands.list')
 
 @app_commands.command(name="list", description="List all active reminders in the server")
 @app_commands.describe(page="Page number (10 reminders per page)")
 async def list_command(interaction: discord.Interaction, page: int = 1):
+    logger.info(
+        f"Command: /reminder list | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Server: {interaction.guild.name if interaction.guild else 'DM'} ({interaction.guild.id if interaction.guild else 'N/A'}) | "
+        f"Page: {page}"
+    )
+    
     REMINDERS_PER_PAGE = 10
     
     active_reminders = []

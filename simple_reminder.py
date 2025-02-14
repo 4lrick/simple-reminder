@@ -14,13 +14,9 @@ from src.commands.list_reminders import list_command
 from src.commands.remove_reminder import remove_command
 from src.commands.edit_reminder import edit_command
 from src.commands.help import show_help
+from src.logger import setup_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 intents = discord.Intents.default()
 intents.members = True
@@ -129,11 +125,23 @@ async def check_reminders():
     channel_reminders = {}
     for reminder in bot.reminder_manager.reminders:
         if reminder.time - timedelta(minutes=15) <= now < reminder.time - timedelta(minutes=14):
+            logger.info(
+                f"Sending 15-minute warning for reminder: {reminder.message} | "
+                f"Time: {format_discord_timestamp(reminder.time)} | "
+                f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
+                f"Targets: {', '.join(f'{t.name}#{t.discriminator}' for t in reminder.targets)}"
+            )
             channel_key = reminder.channel.id
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
             channel_reminders[channel_key].append(('warning', reminder))
         elif now >= reminder.time:
+            logger.info(
+                f"Triggering reminder: {reminder.message} | "
+                f"Time: {format_discord_timestamp(reminder.time)} | "
+                f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
+                f"Targets: {', '.join(f'{t.name}#{t.discriminator}' for t in reminder.targets)}"
+            )
             channel_key = reminder.channel.id
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
@@ -163,6 +171,11 @@ async def check_reminders():
                             reminder.timezone
                         )
                         to_add.append(new_reminder)
+                        logger.info(
+                            f"Created next occurrence of recurring reminder: {reminder.message} | "
+                            f"Next time: {format_discord_timestamp(next_time)} | "
+                            f"Recurring: {reminder.recurring}"
+                        )
                     else:
                         logger.error(f"Invalid next time calculated for recurring reminder")
                 except Exception as e:
@@ -234,10 +247,17 @@ async def cleanup_old_reminders():
     cutoff = now - timedelta(days=CLEANUP_DAYS)
     to_remove = []
 
+    logger.info(f"Starting cleanup of old reminders (older than {CLEANUP_DAYS} days)")
+
     for reminder in bot.reminder_manager.reminders:
         if not reminder.recurring and reminder.time < cutoff:
             to_remove.append(reminder)
-            logger.info(f"Cleaning up old reminder from {format_discord_timestamp(reminder.time)}")
+            logger.info(
+                f"Cleaning up old reminder: {reminder.message} | "
+                f"From: {format_discord_timestamp(reminder.time)} | "
+                f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
+                f"Author: {reminder.author.name}#{reminder.author.discriminator}"
+            )
     
     for reminder in to_remove:
         try:
@@ -247,6 +267,9 @@ async def cleanup_old_reminders():
     
     if to_remove:
         bot.reminder_manager.save_reminders()
+        logger.info(f"Cleanup completed. Removed {len(to_remove)} old reminders")
+    else:
+        logger.info("Cleanup completed. No old reminders to remove")
 
 @tasks.loop(minutes=5)
 async def clear_user_cache(bot):

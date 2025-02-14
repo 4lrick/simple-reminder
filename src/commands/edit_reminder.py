@@ -2,8 +2,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import discord
 from discord import app_commands
+import logging
 from src.reminder import format_discord_timestamp, calculate_next_occurrence
 from .autocomplete import timezone_autocomplete, recurring_autocomplete, number_autocomplete
+
+logger = logging.getLogger('reminder_bot.commands.edit')
 
 @app_commands.command(name="edit", description="Edit an existing reminder")
 @app_commands.describe(
@@ -28,6 +31,12 @@ async def edit_command(
     timezone: str = None,
     recurring: str = None
 ):
+    logger.info(
+        f"Command: /reminder edit | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
+        f"Number: {number} | Changes: {', '.join(f'{k}={v}' for k, v in {'date': date, 'time': time, 'message': message, 'timezone': timezone, 'recurring': recurring}.items() if v is not None)}"
+    )
+    
     author = interaction.user
     guild_id = interaction.guild.id if interaction.guild else None
     

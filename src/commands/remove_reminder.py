@@ -2,13 +2,22 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
+import logging
 from src.reminder import format_discord_timestamp, calculate_next_occurrence
 from .autocomplete import number_autocomplete
+
+logger = logging.getLogger('reminder_bot.commands.remove')
 
 @app_commands.command(name="remove", description="Remove a reminder by its number")
 @app_commands.describe(number="The number of the reminder (from /reminder list)")
 @app_commands.autocomplete(number=number_autocomplete)
 async def remove_command(interaction: discord.Interaction, number: int):
+    logger.info(
+        f"Command: /reminder remove | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
+        f"Number: {number}"
+    )
+    
     author = interaction.user
     guild_id = interaction.guild.id if interaction.guild else None
     
