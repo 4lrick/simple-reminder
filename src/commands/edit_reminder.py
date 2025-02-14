@@ -7,7 +7,7 @@ from .autocomplete import timezone_autocomplete, recurring_autocomplete, number_
 
 @app_commands.command(name="edit", description="Edit an existing reminder")
 @app_commands.describe(
-    number="The reminder number from /reminder list",
+    number="The reminder number from /reminder list (you can type a specific number)",
     date="(Optional) New date in YYYY-MM-DD format",
     time="(Optional) New time in HH:MM format",
     message="(Optional) New message for the reminder",

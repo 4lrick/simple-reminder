@@ -71,7 +71,6 @@ async def recurring_autocomplete(interaction: discord.Interaction, current: str)
     command_name = interaction.command.name if interaction.command else ""
     options = ['daily', 'weekly', 'monthly']
     
-    # Add 'none' option only for edit command
     if command_name == "edit":
         options.append('none')
     
@@ -134,8 +133,25 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
     user_reminders.sort(key=lambda x: x.time)
     options = []
     
-    for i, reminder in enumerate(user_reminders, 1):
-        if not current or str(i).startswith(current):
+    try:
+        target_num = int(current) if current else 1
+        start_idx = max(0, target_num - 13)
+        end_idx = min(len(user_reminders), start_idx + 25)
+        start_idx = max(0, end_idx - 25)
+        
+        for i in range(start_idx, end_idx):
+            reminder = user_reminders[i]
+            num = i + 1
+            if not current or str(num).startswith(current):
+                human_readable_msg = format_mentions(reminder.message, interaction.guild)
+                message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
+                recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
+                timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
+                display = f"#{num}: {time_str} - {message_preview}{recurring_str}{timezone_str}"
+                options.append(app_commands.Choice(name=display, value=str(num)))
+    except ValueError:
+        for i, reminder in enumerate(user_reminders[:25], 1):
             human_readable_msg = format_mentions(reminder.message, interaction.guild)
             message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
             recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
@@ -143,5 +159,13 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
             time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
             display = f"#{i}: {time_str} - {message_preview}{recurring_str}{timezone_str}"
             options.append(app_commands.Choice(name=display, value=str(i)))
+    
+    if len(user_reminders) > 25 and len(options) < 25:
+        remaining = len(user_reminders) - int(current if current and current.isdigit() else 0)
+        if remaining > 0:
+            options.append(app_commands.Choice(
+                name=f"Type a number between 1 and {len(user_reminders)} to see more...",
+                value=current or "1"
+            ))
     
     return options[:25]

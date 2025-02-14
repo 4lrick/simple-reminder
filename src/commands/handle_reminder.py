@@ -6,17 +6,10 @@ from src.reminder import Reminder, format_discord_timestamp, calculate_next_occu
 
 logger = logging.getLogger(__name__)
 
-MAX_MESSAGE_LENGTH = 1000
-MAX_MENTIONS_PER_REMINDER = 10
-
 async def handle_reminder(interaction: discord.Interaction, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
     try:
         if not message:
             await interaction.response.send_message("⚠️ Please provide a message for your reminder.")
-            return
-            
-        if len(message) > MAX_MESSAGE_LENGTH:
-            await interaction.response.send_message(f"❌ Message is too long. Maximum length is {MAX_MESSAGE_LENGTH} characters.")
             return
 
         if not interaction.guild:
@@ -26,15 +19,9 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
         author = interaction.user
         channel = interaction.channel
         mentioned_users = [author]
-        mention_count = 0
 
         if hasattr(interaction, 'data') and 'resolved' in interaction.data and 'users' in interaction.data['resolved']:
             for user_id in interaction.data['resolved']['users']:
-                mention_count += 1
-                if mention_count > MAX_MENTIONS_PER_REMINDER:
-                    await interaction.response.send_message(f"❌ Too many mentions. Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
-                    return
-                    
                 user = await interaction.guild.fetch_member(int(user_id))
                 if user and user not in mentioned_users:
                     mentioned_users.append(user)
