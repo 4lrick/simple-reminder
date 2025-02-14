@@ -6,10 +6,18 @@ from src.reminder import Reminder, format_discord_timestamp, calculate_next_occu
 
 logger = logging.getLogger(__name__)
 
+MAX_MESSAGE_LENGTH = 1000
+MAX_MENTIONS_PER_REMINDER = 10
+MAX_YEARS_IN_FUTURE = 10
+
 async def handle_reminder(interaction: discord.Interaction, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
     try:
         if not message:
             await interaction.response.send_message("⚠️ Please provide a message for your reminder.")
+            return
+
+        if len(message) > MAX_MESSAGE_LENGTH:
+            await interaction.response.send_message(f"❌ Message is too long. Maximum length is {MAX_MESSAGE_LENGTH} characters.")
             return
 
         if not interaction.guild:
@@ -19,9 +27,15 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
         author = interaction.user
         channel = interaction.channel
         mentioned_users = [author]
+        mention_count = 0
 
         if hasattr(interaction, 'data') and 'resolved' in interaction.data and 'users' in interaction.data['resolved']:
             for user_id in interaction.data['resolved']['users']:
+                mention_count += 1
+                if mention_count > MAX_MENTIONS_PER_REMINDER:
+                    await interaction.response.send_message(f"❌ Too many mentions. Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
+                    return
+                    
                 user = await interaction.guild.fetch_member(int(user_id))
                 if user and user not in mentioned_users:
                     mentioned_users.append(user)
@@ -42,6 +56,12 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
                     raise ValueError("Year must be 1970 or later")
                 if naive_time.year > 9999:
                     raise ValueError("Year must be 9999 or earlier")
+                
+                max_future = datetime.now() + timedelta(days=MAX_YEARS_IN_FUTURE * 365)
+                if naive_time > max_future:
+                    await interaction.response.send_message(f"❌ Cannot set reminders more than {MAX_YEARS_IN_FUTURE} years in the future.")
+                    return
+
             except ValueError as e:
                 await interaction.response.send_message(
                     f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD HH:MM'.\n"
