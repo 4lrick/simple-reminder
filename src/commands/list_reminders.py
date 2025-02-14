@@ -43,7 +43,10 @@ async def list_command(interaction: discord.Interaction, page: int = 1):
     max_pages = (total_reminders + REMINDERS_PER_PAGE - 1) // REMINDERS_PER_PAGE
     
     if page < 1 or page > max_pages:
-        await interaction.response.send_message(f"❌ Invalid page number. Please use a number between 1 and {max_pages}.")
+        message = "❌ Invalid page number."
+        if max_pages > 1:
+            message += f" Please use a number between 1 and {max_pages}."
+        await interaction.response.send_message(message)
         return
 
     embed = discord.Embed(
