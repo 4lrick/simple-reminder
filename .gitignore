@@ -27,6 +27,7 @@ wheels/
 
 # Bot data
 reminders.json
+*.log
 
 # IDE
 .idea/

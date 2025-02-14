@@ -6,6 +6,7 @@ import asyncio
 import logging
 from zoneinfo import ZoneInfo
 from typing import Optional
+from collections import defaultdict
 
 from src.config import DISCORD_TOKEN, CLEANUP_DAYS
 from src.reminder import ReminderManager, format_discord_timestamp, calculate_next_occurrence
@@ -50,6 +51,21 @@ class ReminderBot(commands.Bot):
     async def on_ready(self):
         logger.info(f'Logged in as {self.user}')
         await self.reminder_manager.load_reminders(self)
+        
+        total_reminders = len(self.reminder_manager.reminders)
+        recurring_count = sum(1 for r in self.reminder_manager.reminders if r.recurring)
+        timezone_stats = defaultdict(int)
+        guild_stats = defaultdict(int)
+        
+        for reminder in self.reminder_manager.reminders:
+            timezone_stats[reminder.timezone] += 1
+            guild_stats[reminder.guild_id] += 1
+        
+        logger.info(f"Bot ready! Loaded {total_reminders} reminders:")
+        logger.info(f"  • {recurring_count} recurring reminders")
+        logger.info(f"  • {len(guild_stats)} guilds with active reminders")
+        logger.info(f"  • Most used timezones: {dict(sorted(timezone_stats.items(), key=lambda x: x[1], reverse=True)[:3])}")
+        
         check_reminders.start()
         cleanup_old_reminders.start()
         clear_user_cache.start(self)
