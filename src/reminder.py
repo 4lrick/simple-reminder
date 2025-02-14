@@ -11,6 +11,35 @@ import src.config
 
 logger = logging.getLogger(__name__)
 
+REMINDER_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "required": ["time", "author_id", "target_ids", "message", "channel_id"],
+        "properties": {
+            "time": {"type": "string", "format": "date-time"},
+            "author_id": {"type": "integer"},
+            "target_ids": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "minItems": 1
+            },
+            "message": {"type": "string", "maxLength": 1000},
+            "channel_id": {"type": "integer"},
+            "guild_id": {"type": ["integer", "null"]},
+            "recurring": {"type": ["string", "null"], "enum": ["daily", "weekly", "monthly", None]},
+            "timezone": {"type": "string"}
+        }
+    }
+}
+
+try:
+    import jsonschema
+    SCHEMA_VALIDATION = True
+except ImportError:
+    logger.warning("jsonschema not installed. Schema validation disabled.")
+    SCHEMA_VALIDATION = False
+
 def format_discord_timestamp(dt: datetime, style: str = 'f') -> str:
     """Format a datetime object into a Discord timestamp string."""
     if not isinstance(dt, datetime):
@@ -58,6 +87,13 @@ class ReminderManager:
     def save_reminders(self):
         data = [reminder.to_dict() for reminder in self.reminders]
         try:
+            if SCHEMA_VALIDATION:
+                try:
+                    jsonschema.validate(instance=data, schema=REMINDER_SCHEMA)
+                except jsonschema.exceptions.ValidationError as e:
+                    logger.error(f"Invalid reminder data: {e}")
+                    return
+
             save_file = src.config.SAVE_FILE
             with open(save_file, 'w') as f:
                 json.dump(data, f, indent=2)
@@ -117,7 +153,14 @@ class ReminderManager:
         try:
             with open(save_file, 'r') as f:
                 data = json.load(f)
-            
+                
+            if SCHEMA_VALIDATION:
+                try:
+                    jsonschema.validate(instance=data, schema=REMINDER_SCHEMA)
+                except jsonschema.exceptions.ValidationError as e:
+                    logger.error(f"Invalid reminder data in file: {e}")
+                    return
+
             user_ids = set()
             for reminder_data in data:
                 user_ids.add(reminder_data['author_id'])

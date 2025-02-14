@@ -36,7 +36,7 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
                     await interaction.response.send_message(f"❌ Too many mentions. Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
                     return
                     
-                user = await interaction.guild.fetch_member(int(user_id))
+                user = await interaction.client.get_or_fetch_member(interaction.guild.id, int(user_id))
                 if user and user not in mentioned_users:
                     mentioned_users.append(user)
 

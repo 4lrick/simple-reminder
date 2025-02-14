@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import asyncio
 import logging
 from zoneinfo import ZoneInfo
+from typing import Optional
 
 from src.config import DISCORD_TOKEN, CLEANUP_DAYS
 from src.reminder import ReminderManager, format_discord_timestamp, calculate_next_occurrence
@@ -29,6 +30,10 @@ class ReminderBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix=None, intents=intents)
         self.reminder_manager = ReminderManager()
+        self._last_clear_time = None
+        self._command_count = 0
+        self._command_threshold = 1000
+        self._guild_member_cache = {}
     
     async def setup_hook(self):
         reminder_group = app_commands.Group(name="reminder", description="Reminder commands")
@@ -45,14 +50,66 @@ class ReminderBot(commands.Bot):
         
         self.tree.add_command(reminder_group)
         await self.tree.sync()
-        
-        clear_user_cache.start(self)
     
     async def on_ready(self):
         logger.info(f'Logged in as {self.user}')
         await self.reminder_manager.load_reminders(self)
         check_reminders.start()
         cleanup_old_reminders.start()
+        clear_user_cache.start(self)
+        self._last_clear_time = datetime.now(ZoneInfo('UTC'))
+        self._command_count = 0
+
+    async def get_or_fetch_member(self, guild_id: int, user_id: int) -> Optional[discord.Member]:
+        """Get a member from cache or fetch them with rate limit handling"""
+        cache_key = f"{guild_id}_{user_id}"
+        
+        if cache_key in self._guild_member_cache:
+            return self._guild_member_cache[cache_key]
+        
+        guild = self.get_guild(guild_id)
+        if not guild:
+            return None
+        
+        try:
+            member = guild.get_member(user_id)
+            if member:
+                self._guild_member_cache[cache_key] = member
+                return member
+            
+            try:
+                member = await guild.fetch_member(user_id)
+                if member:
+                    self._guild_member_cache[cache_key] = member
+                    return member
+            except discord.HTTPException as e:
+                if e.status == 429:
+                    logger.warning(f"Rate limited while fetching member {user_id} from guild {guild_id}")
+                    await asyncio.sleep(e.retry_after)
+                    try:
+                        member = await guild.fetch_member(user_id)
+                        if member:
+                            self._guild_member_cache[cache_key] = member
+                            return member
+                    except:
+                        pass
+                elif e.status == 404:
+                    logger.debug(f"Member {user_id} not found in guild {guild_id}")
+                    return None
+                else:
+                    logger.error(f"Error fetching member {user_id} from guild {guild_id}: {e}")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Unexpected error fetching member {user_id} from guild {guild_id}: {e}")
+            return None
+        
+        return None
+    
+    def clear_member_cache(self):
+        """Clear the guild member cache"""
+        self._guild_member_cache.clear()
+        logger.debug("Cleared guild member cache")
 
 bot = ReminderBot()
 
@@ -191,10 +248,19 @@ async def cleanup_old_reminders():
     if to_remove:
         bot.reminder_manager.save_reminders()
 
-@tasks.loop(hours=24)
+@tasks.loop(minutes=5)
 async def clear_user_cache(bot):
-    """Clear the user cache daily to prevent memory bloat"""
-    bot.reminder_manager.clear_cache()
-    logger.debug("Cleared user cache")
+    """Clear the user cache periodically or when command threshold is reached"""
+    now = datetime.now(ZoneInfo('UTC'))
+    hours_since_clear = 0
+    if bot._last_clear_time:
+        hours_since_clear = (now - bot._last_clear_time).total_seconds() / 3600
+
+    if hours_since_clear >= 24 or bot._command_count >= bot._command_threshold:
+        bot.reminder_manager.clear_cache()
+        bot.clear_member_cache()
+        bot._last_clear_time = now
+        bot._command_count = 0
+        logger.info("Cleared user cache")
 
 bot.run(DISCORD_TOKEN)
