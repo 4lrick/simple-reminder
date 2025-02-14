@@ -45,6 +45,8 @@ class ReminderBot(commands.Bot):
         
         self.tree.add_command(reminder_group)
         await self.tree.sync()
+        
+        clear_user_cache.start(self)
     
     async def on_ready(self):
         logger.info(f'Logged in as {self.user}')
@@ -67,28 +69,18 @@ async def check_reminders():
     to_remove = []
     to_add = []
 
+    channel_reminders = {}
     for reminder in bot.reminder_manager.reminders:
-        if now >= reminder.time - timedelta(minutes=15) and now < reminder.time - timedelta(minutes=14):
-            for user in reminder.targets:
-                timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                try:
-                    await reminder.channel.send(
-                        f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to send advance notification: {e}")
-            
-        if now >= reminder.time:
-            targets_mentions = ' '.join(user.mention for user in reminder.targets)
-            timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-            try:
-                await reminder.channel.send(
-                    f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to send reminder: {e}")
-                if not reminder.recurring:
-                    continue
+        if reminder.time - timedelta(minutes=15) <= now < reminder.time - timedelta(minutes=14):
+            channel_key = reminder.channel.id
+            if channel_key not in channel_reminders:
+                channel_reminders[channel_key] = []
+            channel_reminders[channel_key].append(('warning', reminder))
+        elif now >= reminder.time:
+            channel_key = reminder.channel.id
+            if channel_key not in channel_reminders:
+                channel_reminders[channel_key] = []
+            channel_reminders[channel_key].append(('trigger', reminder))
             
             if reminder.recurring:
                 try:
@@ -121,6 +113,54 @@ async def check_reminders():
             
             to_remove.append(reminder)
 
+    for channel_id, reminder_list in channel_reminders.items():
+        try:
+            channel = bot.get_channel(channel_id)
+            if not channel:
+                logger.warning(f"Channel {channel_id} not found, skipping {len(reminder_list)} reminders")
+                continue
+                
+            for reminder_type, reminder in reminder_list:
+                try:
+                    if reminder_type == 'warning':
+                        for user in reminder.targets:
+                            timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                            await channel.send(
+                                f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
+                            )
+                            await asyncio.sleep(0.5)
+                    else:
+                        targets_mentions = ' '.join(user.mention for user in reminder.targets)
+                        timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                        await channel.send(
+                            f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
+                        )
+                        await asyncio.sleep(0.5)
+                except discord.HTTPException as e:
+                    if e.status == 429:
+                        retry_after = e.retry_after
+                        logger.info(f"Rate limited when sending message, waiting {retry_after} seconds")
+                        await asyncio.sleep(retry_after)
+                        try:
+                            if reminder_type == 'warning':
+                                for user in reminder.targets:
+                                    timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                                    await channel.send(
+                                        f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
+                                    )
+                            else:
+                                targets_mentions = ' '.join(user.mention for user in reminder.targets)
+                                timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                                await channel.send(
+                                    f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
+                                )
+                        except Exception as e2:
+                            logger.error(f"Failed to send message after rate limit retry: {e2}")
+                    else:
+                        logger.error(f"Failed to send message: {e}")
+        except Exception as e:
+            logger.error(f"Error processing channel {channel_id}: {e}")
+
     for reminder in to_remove:
         try:
             bot.reminder_manager.reminders.remove(reminder)
@@ -128,7 +168,8 @@ async def check_reminders():
             logger.error(f"Failed to remove reminder: {reminder.time} - {reminder.message}")
     
     bot.reminder_manager.reminders.extend(to_add)
-    bot.reminder_manager.save_reminders()
+    if to_remove or to_add:
+        bot.reminder_manager.save_reminders()
 
 @tasks.loop(hours=24)
 async def cleanup_old_reminders():
@@ -149,5 +190,11 @@ async def cleanup_old_reminders():
     
     if to_remove:
         bot.reminder_manager.save_reminders()
+
+@tasks.loop(hours=24)
+async def clear_user_cache(bot):
+    """Clear the user cache daily to prevent memory bloat"""
+    bot.reminder_manager.clear_cache()
+    logger.debug("Cleared user cache")
 
 bot.run(DISCORD_TOKEN)
