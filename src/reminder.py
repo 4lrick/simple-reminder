@@ -18,18 +18,24 @@ REMINDER_SCHEMA = {
         "required": ["time", "author_id", "target_ids", "message", "channel_id"],
         "properties": {
             "time": {"type": "string", "format": "date-time"},
-            "author_id": {"type": "integer"},
+            "author_id": {"type": "integer", "minimum": 1},
             "target_ids": {
                 "type": "array",
-                "items": {"type": "integer"},
-                "minItems": 1
+                "items": {"type": "integer", "minimum": 1},
+                "minItems": 1,
+                "maxItems": 10
             },
-            "message": {"type": "string", "maxLength": 1000},
-            "channel_id": {"type": "integer"},
-            "guild_id": {"type": ["integer", "null"]},
+            "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+            },
+            "channel_id": {"type": "integer", "minimum": 1},
+            "guild_id": {"type": ["integer", "null"], "minimum": 1},
             "recurring": {"type": ["string", "null"], "enum": ["daily", "weekly", "monthly", None]},
-            "timezone": {"type": "string"}
-        }
+            "timezone": {"type": "string", "pattern": "^[A-Za-z]+(/[A-Za-z_]+)*$"}
+        },
+        "additionalProperties": False
     }
 }
 

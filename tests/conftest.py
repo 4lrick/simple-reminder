@@ -2,33 +2,49 @@ import pytest
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import discord
+from typing import List, Optional
 from src.reminder import ReminderManager
 
 class MockUser:
-    def __init__(self, id, name):
+    id: int
+    name: str
+    display_name: str
+    mention: str
+
+    def __init__(self, id: int, name: str):
         self.id = id
         self.name = name
         self.display_name = name
         self.mention = f"<@{id}>"
 
 class MockChannel:
-    def __init__(self, id, name):
+    id: int
+    name: str
+    guild: 'MockGuild'
+    _messages: List[str]
+
+    def __init__(self, id: int, name: str):
         self.id = id
         self.name = name
         self.guild = MockGuild(1, "Test Guild")
         self._messages = []
     
-    async def send(self, content):
+    async def send(self, content: str) -> 'MockMessage':
         self._messages.append(content)
         return MockMessage(content=content)
 
 class MockGuild:
-    def __init__(self, id, name):
+    id: int
+    name: str
+
+    def __init__(self, id: int, name: str):
         self.id = id
         self.name = name
 
 class MockMessage:
-    def __init__(self, content):
+    content: str
+
+    def __init__(self, content: str):
         self.content = content
 
 @pytest.fixture
