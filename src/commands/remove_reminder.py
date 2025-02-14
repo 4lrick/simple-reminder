@@ -13,7 +13,7 @@ logger = logging.getLogger('reminder_bot.commands.remove')
 @app_commands.autocomplete(number=number_autocomplete)
 async def remove_command(interaction: discord.Interaction, number: int):
     logger.info(
-        f"Command: /reminder remove | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Command: /reminder remove | User: {interaction.user.name} ({interaction.user.id}) | "
         f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
         f"Number: {number}"
     )

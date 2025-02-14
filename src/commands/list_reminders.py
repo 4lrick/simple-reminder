@@ -11,7 +11,7 @@ logger = logging.getLogger('reminder_bot.commands.list')
 @app_commands.describe(page="Page number (10 reminders per page)")
 async def list_command(interaction: discord.Interaction, page: int = 1):
     logger.info(
-        f"Command: /reminder list | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Command: /reminder list | User: {interaction.user.name} ({interaction.user.id}) | "
         f"Server: {interaction.guild.name if interaction.guild else 'DM'} ({interaction.guild.id if interaction.guild else 'N/A'}) | "
         f"Page: {page}"
     )

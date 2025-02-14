@@ -32,7 +32,7 @@ async def edit_command(
     recurring: str = None
 ):
     logger.info(
-        f"Command: /reminder edit | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Command: /reminder edit | User: {interaction.user.name} ({interaction.user.id}) | "
         f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
         f"Number: {number} | Changes: {', '.join(f'{k}={v}' for k, v in {'date': date, 'time': time, 'message': message, 'timezone': timezone, 'recurring': recurring}.items() if v is not None)}"
     )

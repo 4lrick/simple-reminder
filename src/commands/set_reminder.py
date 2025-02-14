@@ -27,7 +27,7 @@ async def reminder_set(
     recurring: str = None
 ):
     logger.info(
-        f"Command: /reminder set | User: {interaction.user.name}#{interaction.user.discriminator} ({interaction.user.id}) | "
+        f"Command: /reminder set | User: {interaction.user.name} ({interaction.user.id}) | "
         f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
         f"Date: {date} | Time: {time} | TZ: {timezone or 'UTC'} | Recurring: {recurring or 'No'}"
     )

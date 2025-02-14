@@ -10,11 +10,13 @@ class MockUser:
     name: str
     display_name: str
     mention: str
+    global_name: str
 
     def __init__(self, id: int, name: str):
         self.id = id
         self.name = name
         self.display_name = name
+        self.global_name = name
         self.mention = f"<@{id}>"
 
 class MockChannel:

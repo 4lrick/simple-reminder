@@ -193,6 +193,12 @@ async def check_reminders():
             for reminder_type, reminder in reminder_list:
                 try:
                     if reminder_type == 'warning':
+                        logger.info(
+                            f"Sending 15-minute warning for reminder: {reminder.message} | "
+                            f"Time: {format_discord_timestamp(reminder.time)} | "
+                            f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
+                            f"Targets: {', '.join(f'{t.name}' for t in reminder.targets)}"
+                        )
                         for user in reminder.targets:
                             timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
                             await channel.send(
@@ -200,6 +206,12 @@ async def check_reminders():
                             )
                             await asyncio.sleep(0.5)
                     else:
+                        logger.info(
+                            f"Triggering reminder: {reminder.message} | "
+                            f"Time: {format_discord_timestamp(reminder.time)} | "
+                            f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
+                            f"Targets: {', '.join(f'{t.name}' for t in reminder.targets)}"
+                        )
                         targets_mentions = ' '.join(user.mention for user in reminder.targets)
                         timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
                         await channel.send(
