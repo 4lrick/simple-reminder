@@ -21,29 +21,49 @@ def calculate_next_occurrence(current_time: datetime, recurrence_type: str, targ
     if not target_timezone:
         target_timezone = current_time.tzinfo
 
+    local_time = current_time.astimezone(target_timezone)
+    
+    def get_next_time(dt: datetime, delta: timedelta) -> datetime:
+        """Get next occurrence time accounting for DST transitions"""
+        next_date = dt.date() + delta
+        next_time = dt.timetz()
+        
+        candidate_times = [
+            datetime.combine(next_date, next_time.replace(tzinfo=None)).replace(tzinfo=dt.tzinfo),
+            datetime.combine(next_date, next_time.replace(tzinfo=None)).replace(tzinfo=dt.tzinfo) - timedelta(hours=1),
+            datetime.combine(next_date, next_time.replace(tzinfo=None)).replace(tzinfo=dt.tzinfo) + timedelta(hours=1)
+        ]
+        
+        for candidate in candidate_times:
+            if candidate.hour == dt.hour:
+                return candidate
+        
+        return candidate_times[0]
+
     if recurrence_type == 'daily':
-        next_time = current_time + timedelta(days=1)
+        next_local = get_next_time(local_time, timedelta(days=1))
     elif recurrence_type == 'weekly':
-        next_time = current_time + timedelta(weeks=1)
+        next_local = get_next_time(local_time, timedelta(weeks=1))
     elif recurrence_type == 'monthly':
-        year = current_time.year + ((current_time.month + 1) - 1) // 12
-        month = ((current_time.month + 1) - 1) % 12 + 1
+        year = local_time.year + ((local_time.month + 1) - 1) // 12
+        month = ((local_time.month + 1) - 1) % 12 + 1
         try:
-            next_time = current_time.replace(year=year, month=month)
+            next_day = local_time.date().replace(year=year, month=month)
+            days_diff = next_day - local_time.date()
+            next_local = get_next_time(local_time, days_diff)
         except ValueError:
             if month == 12:
                 year += 1
                 month = 1
             else:
                 month += 1
-            next_time = current_time.replace(year=year, month=month, day=1) - timedelta(days=1)
+            last_day = (datetime(year, month, 1) - timedelta(days=1)).date()
+            days_diff = last_day - local_time.date()
+            next_local = get_next_time(local_time, days_diff)
     else:
         return None
 
-    if target_timezone and target_timezone != current_time.tzinfo:
-        local_time = next_time.astimezone(target_timezone)
-        next_time = local_time.replace(tzinfo=current_time.tzinfo).astimezone(current_time.tzinfo)
-    
+    next_time = next_local if next_local.tzinfo == current_time.tzinfo else next_local.astimezone(current_time.tzinfo)
     return next_time
 
 class Reminder:

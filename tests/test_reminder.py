@@ -114,6 +114,29 @@ def test_calculate_next_occurrence():
     next_edge = calculate_next_occurrence(edge_case, "monthly")
     assert next_edge == datetime(2024, 2, 29, 12, 0, tzinfo=ZoneInfo("UTC"))  # 2024 is leap year
 
+def test_calculate_next_occurrence_dst():
+    base_time = datetime(2024, 3, 10, 1, 30, tzinfo=ZoneInfo("America/New_York"))
+    next_daily = calculate_next_occurrence(base_time, "daily")
+    assert next_daily.hour == 1
+    
+    utc_diff = next_daily.astimezone(ZoneInfo('UTC')) - base_time.astimezone(ZoneInfo('UTC'))
+    assert utc_diff.total_seconds() == 23 * 3600
+
+    base_time = datetime(2024, 11, 3, 1, 30, tzinfo=ZoneInfo("America/New_York"))
+    next_daily = calculate_next_occurrence(base_time, "daily")
+    assert next_daily.hour == 1
+    
+    utc_diff = next_daily.astimezone(ZoneInfo('UTC')) - base_time.astimezone(ZoneInfo('UTC'))
+    assert utc_diff.total_seconds() == 25 * 3600
+
+    base_time = datetime(2024, 10, 15, 2, 30, tzinfo=ZoneInfo("America/New_York"))
+    next_monthly = calculate_next_occurrence(base_time, "monthly")
+    assert next_monthly.month == 11
+    assert next_monthly.hour == 2
+    
+    utc_diff = next_monthly.astimezone(ZoneInfo('UTC')) - base_time.astimezone(ZoneInfo('UTC'))
+    assert utc_diff.total_seconds() > 0
+
 @pytest.mark.asyncio
 async def test_reminder_manager_save_load(mock_reminder_data, tmp_path, monkeypatch):
     from src.reminder import ReminderManager
