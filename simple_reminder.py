@@ -21,6 +21,7 @@ logger = setup_logger()
 
 intents = discord.Intents.default()
 intents.members = True
+intents.message_content = True
 intents.presences = False
 
 class ReminderBot(commands.Bot):
