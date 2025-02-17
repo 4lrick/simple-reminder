@@ -51,7 +51,7 @@ async def timezone_autocomplete(interaction: discord.Interaction, current: str) 
     options = []
     for tz in common_zones:
         if not current or current.lower() in tz.lower():
-            options.append(app_commands.Choice(name=tz, value=tz))
+            options.append(app_commands.Choice(name=truncate_display_name(tz), value=tz))
     
     if len(options) < 25:
         remaining_slots = 25 - len(options)
@@ -62,7 +62,7 @@ async def timezone_autocomplete(interaction: discord.Interaction, current: str) 
         ])
         
         for tz in matching_zones[:remaining_slots]:
-            options.append(app_commands.Choice(name=tz, value=tz))
+            options.append(app_commands.Choice(name=truncate_display_name(tz), value=tz))
     
     return options
 
@@ -75,9 +75,15 @@ async def recurring_autocomplete(interaction: discord.Interaction, current: str)
         options.append('none')
     
     return [
-        app_commands.Choice(name=opt, value=opt)
+        app_commands.Choice(name=truncate_display_name(opt), value=opt)
         for opt in options if current.lower() in opt.lower()
     ]
+
+def truncate_display_name(text: str, max_length: int = 100) -> str:
+    """Truncate a display name to fit Discord's limits"""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length-3] + "..."
 
 async def message_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     command_options = [
@@ -88,7 +94,7 @@ async def message_autocomplete(interaction: discord.Interaction, current: str) -
     
     for display, value in command_options:
         if not current or current.lower() in value.lower():
-            options.append(app_commands.Choice(name=display, value=value))
+            options.append(app_commands.Choice(name=truncate_display_name(display), value=value))
     
     if current.lower().startswith('remove') or not current or current.lower().startswith('"remove'):
         now = datetime.now(ZoneInfo('UTC'))
@@ -104,8 +110,8 @@ async def message_autocomplete(interaction: discord.Interaction, current: str) -
                         remove_option = f'"remove {user_reminder_count}"'
                         recurring_str = f" (Recurring: {r.recurring})" if r.recurring else ""
                         time_str = format_timestamp(r.time.astimezone(ZoneInfo(r.timezone)))
-                        remove_display = f"Remove #{user_reminder_count}: {time_str} - {message_preview}{recurring_str}"
-                        options.append(app_commands.Choice(name=remove_display, value=remove_option))
+                        display = f"Remove #{user_reminder_count}: {time_str} - {message_preview}{recurring_str}"
+                        options.append(app_commands.Choice(name=truncate_display_name(display), value=remove_option))
     
     return options[:25]
 
@@ -152,15 +158,16 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
                 targets_str = f" (With: {', '.join(t.display_name for t in reminder.targets if t != interaction.user)})" if len(reminder.targets) > 1 else ""
                 time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
                 display = f"#{num}: {time_str} - {message_preview}{targets_str}{recurring_str}{timezone_str}"
-                options.append(app_commands.Choice(name=display, value=str(num)))
+                options.append(app_commands.Choice(name=truncate_display_name(display), value=str(num)))
     except ValueError:
         pass
     
     if len(user_reminders) > 25 and len(options) < 25:
         remaining = len(user_reminders) - int(current if current and current.isdigit() else 0)
         if remaining > 0:
+            display = f"Type a number between 1 and {len(user_reminders)} to see more..."
             options.append(app_commands.Choice(
-                name=f"Type a number between 1 and {len(user_reminders)} to see more...",
+                name=truncate_display_name(display),
                 value=current or "1"
             ))
     
