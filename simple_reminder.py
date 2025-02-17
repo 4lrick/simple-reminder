@@ -161,7 +161,7 @@ async def check_reminders():
                 f"Sending 15-minute warning for reminder: {reminder.message} | "
                 f"Time: {format_discord_timestamp(reminder.time)} | "
                 f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
-                f"Targets: {', '.join(f'{t.name}#{t.discriminator}' for t in reminder.targets)}"
+                f"Targets: {', '.join(f'{t.name}' for t in reminder.targets)}"
             )
             channel_key = reminder.channel.id
             if channel_key not in channel_reminders:
@@ -172,7 +172,7 @@ async def check_reminders():
                 f"Triggering reminder: {reminder.message} | "
                 f"Time: {format_discord_timestamp(reminder.time)} | "
                 f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
-                f"Targets: {', '.join(f'{t.name}#{t.discriminator}' for t in reminder.targets)}"
+                f"Targets: {', '.join(f'{t.name}' for t in reminder.targets)}"
             )
             channel_key = reminder.channel.id
             if channel_key not in channel_reminders:
@@ -300,7 +300,7 @@ async def cleanup_old_reminders():
                 f"Cleaning up old reminder: {reminder.message} | "
                 f"From: {format_discord_timestamp(reminder.time)} | "
                 f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
-                f"Author: {reminder.author.name}#{reminder.author.discriminator}"
+                f"Author: {reminder.author.name}"
             )
     
     for reminder in to_remove:

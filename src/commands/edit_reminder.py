@@ -148,15 +148,40 @@ async def edit_command(
         reminder.message = message
         
         new_targets = [author]
+        mention_count = 0
+        
         for word in message.split():
-            if word.startswith('<@') and word.endswith('>'):
+            if word.startswith('<@&') and word.endswith('>'):
+                try:
+                    role_id = int(word[3:-1])
+                    role = interaction.guild.get_role(role_id)
+                    if role:
+                        mention_count += len(role.members)
+                        if mention_count > 25:
+                            await interaction.response.send_message("❌ Too many total mentions (including role members). Maximum is 25 users per reminder.")
+                            return
+                        for member in role.members:
+                            if member not in new_targets:
+                                new_targets.append(member)
+                except ValueError:
+                    continue
+            elif word.startswith('<@') and word.endswith('>'):
                 try:
                     user_id = int(word[2:-1].replace('!', ''))
+                    mention_count += 1
+                    if mention_count > 25:
+                        await interaction.response.send_message("❌ Too many mentions. Maximum is 25 users per reminder.")
+                        return
                     user = interaction.guild.get_member(user_id)
                     if user and user not in new_targets:
                         new_targets.append(user)
                 except ValueError:
                     continue
+        
+        if not new_targets:
+            await interaction.response.send_message("❌ Could not find any valid users to remind (including role members).")
+            return
+            
         reminder.targets = new_targets
     
     interaction.client.reminder_manager.save_reminders()

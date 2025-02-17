@@ -65,7 +65,15 @@ async def list_command(interaction: discord.Interaction, page: int = 1):
     for i, reminder in enumerate(active_reminders[start_idx:end_idx], start=start_idx + 1):
         message_preview = reminder.message
         for word in message_preview.split():
-            if word.startswith('<@') and word.endswith('>'):
+            if word.startswith('<@&') and word.endswith('>'):
+                try:
+                    role_id = int(word[3:-1])
+                    role = interaction.guild.get_role(role_id)
+                    if role:
+                        message_preview = message_preview.replace(word, f"@{role.name}")
+                except ValueError:
+                    continue
+            elif word.startswith('<@') and word.endswith('>'):
                 try:
                     user_id = int(word[2:-1].replace('!', ''))
                     mentioned_user = interaction.guild.get_member(user_id) if interaction.guild else None

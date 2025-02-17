@@ -16,6 +16,7 @@ HELP_TEXT = """📝 **Simple Reminder Bot Commands**
 ```
 /reminder set date:2024-02-10 time:14:00 message:@user1 @user2 Team meeting
 /reminder set date:2024-02-10 time:14:00 timezone:Europe/Paris recurring:daily message:Daily standup
+/reminder set date:2024-02-10 time:15:00 message:@role Weekly sync meeting
 ```
 
 **Options:**
@@ -23,12 +24,14 @@ HELP_TEXT = """📝 **Simple Reminder Bot Commands**
 • Recurring: Use recurring: parameter with daily, weekly, or monthly
 • Time Format: 24-hour (HH:MM)
 • Date Format: YYYY-MM-DD
+• Mentions: You can mention both users (@user) and roles (@role) in the message
 
 **Tips:**
 • Use the tab key for command autocomplete
 • Numbers in edit/remove commands are from /reminder list
 • You can edit multiple fields at once
-• Only the reminder creator can edit/remove it"""
+• Only the reminder creator can edit/remove it
+• Maximum of 25 total users (including role members) per reminder"""
 
 async def show_help(ctx):
     is_interaction = isinstance(ctx, discord.Interaction)

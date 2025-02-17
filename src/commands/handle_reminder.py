@@ -7,7 +7,7 @@ from src.reminder import Reminder, format_discord_timestamp, calculate_next_occu
 logger = logging.getLogger(__name__)
 
 MAX_MESSAGE_LENGTH = 1000
-MAX_MENTIONS_PER_REMINDER = 10
+MAX_MENTIONS_PER_REMINDER = 25
 MAX_YEARS_IN_FUTURE = 10
 
 async def handle_reminder(interaction: discord.Interaction, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
@@ -29,6 +29,25 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
         mentioned_users = [author]
         mention_count = 0
 
+        message_parts = []
+        for word in message.split():
+            if word.startswith('<@&') and word.endswith('>'):
+                try:
+                    role_id = int(word[3:-1])
+                    role = interaction.guild.get_role(role_id)
+                    if role:
+                        mention_count += len(role.members)
+                        if mention_count > MAX_MENTIONS_PER_REMINDER:
+                            await interaction.response.send_message(f"❌ Too many total mentions (including role members). Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
+                            return
+                        for member in role.members:
+                            if member not in mentioned_users:
+                                mentioned_users.append(member)
+                except ValueError:
+                    continue
+            message_parts.append(word)
+        message = ' '.join(message_parts)
+
         if hasattr(interaction, 'data') and 'resolved' in interaction.data and 'users' in interaction.data['resolved']:
             for user_id in interaction.data['resolved']['users']:
                 mention_count += 1
@@ -39,6 +58,10 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
                 user = await interaction.client.get_or_fetch_member(interaction.guild.id, int(user_id))
                 if user and user not in mentioned_users:
                     mentioned_users.append(user)
+
+        if not mentioned_users:
+            await interaction.response.send_message("❌ Could not find any valid users to remind (including role members).")
+            return
 
         timezone_override = None
         if timezone:
