@@ -119,16 +119,18 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
         if r.guild_id != guild_id:
             continue
             
-        if interaction.user in r.targets:
-            if r.time > now:
+        if interaction.user not in r.targets:
+            continue
+            
+        if r.time > now:
+            user_reminders.append(r)
+        elif r.recurring:
+            next_time = calculate_next_occurrence(r.time, r.recurring)
+            while next_time and next_time <= now:
+                next_time = calculate_next_occurrence(next_time, r.recurring)
+            if next_time:
+                r.time = next_time
                 user_reminders.append(r)
-            elif r.recurring:
-                next_time = calculate_next_occurrence(r.time, r.recurring)
-                while next_time and next_time <= now:
-                    next_time = calculate_next_occurrence(next_time, r.recurring)
-                if next_time:
-                    r.time = next_time
-                    user_reminders.append(r)
     
     user_reminders.sort(key=lambda x: x.time)
     options = []
@@ -147,18 +149,12 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
                 message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
                 recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
                 timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+                targets_str = f" (With: {', '.join(t.display_name for t in reminder.targets if t != interaction.user)})" if len(reminder.targets) > 1 else ""
                 time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
-                display = f"#{num}: {time_str} - {message_preview}{recurring_str}{timezone_str}"
+                display = f"#{num}: {time_str} - {message_preview}{targets_str}{recurring_str}{timezone_str}"
                 options.append(app_commands.Choice(name=display, value=str(num)))
     except ValueError:
-        for i, reminder in enumerate(user_reminders[:25], 1):
-            human_readable_msg = format_mentions(reminder.message, interaction.guild)
-            message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
-            recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
-            timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-            time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
-            display = f"#{i}: {time_str} - {message_preview}{recurring_str}{timezone_str}"
-            options.append(app_commands.Choice(name=display, value=str(i)))
+        pass
     
     if len(user_reminders) > 25 and len(options) < 25:
         remaining = len(user_reminders) - int(current if current and current.isdigit() else 0)

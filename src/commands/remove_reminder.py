@@ -29,20 +29,23 @@ async def remove_command(interaction: discord.Interaction, number: int):
 
     now = datetime.now(ZoneInfo('UTC'))
     user_reminders = []
+    
     for r in interaction.client.reminder_manager.reminders:
         if r.guild_id != guild_id:
             continue
             
-        if author in r.targets:
-            if r.time > now:
+        if interaction.user not in r.targets:
+            continue
+            
+        if r.time > now:
+            user_reminders.append(r)
+        elif r.recurring:
+            next_time = calculate_next_occurrence(r.time, r.recurring)
+            while next_time and next_time <= now:
+                next_time = calculate_next_occurrence(next_time, r.recurring)
+            if next_time:
+                r.time = next_time
                 user_reminders.append(r)
-            elif r.recurring:
-                next_time = calculate_next_occurrence(r.time, r.recurring)
-                while next_time and next_time <= now:
-                    next_time = calculate_next_occurrence(next_time, r.recurring)
-                if next_time:
-                    r.time = next_time
-                    user_reminders.append(r)
     
     user_reminders.sort(key=lambda x: x.time)
     
