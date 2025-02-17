@@ -25,7 +25,7 @@ intents.presences = False
 
 class ReminderBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix=None, intents=intents)
+        super().__init__(command_prefix='!', intents=intents)
         self.reminder_manager = ReminderManager()
         self._last_clear_time = None
         self._command_count = 0
@@ -48,6 +48,22 @@ class ReminderBot(commands.Bot):
         self.tree.add_command(reminder_group)
         await self.tree.sync()
     
+    async def on_message(self, message):
+        if message.author.bot:
+            return
+
+        if self.user in message.mentions:
+            await message.channel.send("👋 Hi! I'm a reminder bot that uses slash commands. Type `/reminder help` to see what I can do!")
+            return
+            
+        await super().on_message(message)
+
+    async def on_command_error(self, context, exception):
+        if isinstance(exception, commands.CommandNotFound):
+            await context.send("❌ This bot only uses slash (/) commands. Type `/reminder help` to see available commands!")
+            return
+        logger.error(f"Command error: {exception}")
+
     async def on_ready(self):
         logger.info(f'Logged in as {self.user}')
         await self.reminder_manager.load_reminders(self)

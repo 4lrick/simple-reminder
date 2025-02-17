@@ -66,7 +66,7 @@ async def test_set_reminder(mock_interaction, future_time):
     
     assert mock_interaction.response_sent
     assert "✅" in str(mock_interaction.response_content)
-    assert "<t:" in str(mock_interaction.response_content)  # Check for Discord timestamp format
+    assert "<t:" in str(mock_interaction.response_content)
     assert mock_interaction.user.mention in str(mock_interaction.response_content)
 
 @pytest.mark.asyncio
