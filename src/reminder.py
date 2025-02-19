@@ -55,33 +55,41 @@ def format_discord_timestamp(dt: datetime, style: str = 'f') -> str:
     return f"<t:{int(dt.timestamp())}:{style}>"
 
 def calculate_next_occurrence(current_time: datetime, recurrence_type: str, target_timezone: Optional[ZoneInfo] = None) -> Optional[datetime]:
+    """Calculate the next occurrence of a recurring reminder.
+    
+    Args:
+        current_time: The current reminder time (in UTC)
+        recurrence_type: Type of recurrence (daily, weekly, monthly)
+        target_timezone: The timezone the reminder was created in
+        
+    Returns:
+        The next occurrence time (in UTC)
+    """
     if not target_timezone:
-        target_timezone = current_time.tzinfo
+        target_timezone = current_time.tzinfo or ZoneInfo('UTC')
+
+    local_time = current_time.astimezone(target_timezone)
 
     if recurrence_type == 'daily':
-        next_time = current_time + timedelta(days=1)
+        local_next = local_time + timedelta(days=1)
     elif recurrence_type == 'weekly':
-        next_time = current_time + timedelta(weeks=1)
+        local_next = local_time + timedelta(weeks=1)
     elif recurrence_type == 'monthly':
-        year = current_time.year + ((current_time.month + 1) - 1) // 12
-        month = ((current_time.month + 1) - 1) % 12 + 1
+        year = local_time.year + ((local_time.month + 1) - 1) // 12
+        month = ((local_time.month + 1) - 1) % 12 + 1
         try:
-            next_time = current_time.replace(year=year, month=month)
+            local_next = local_time.replace(year=year, month=month)
         except ValueError:
             if month == 12:
                 year += 1
                 month = 1
             else:
                 month += 1
-            next_time = current_time.replace(year=year, month=month, day=1) - timedelta(days=1)
+            local_next = local_time.replace(year=year, month=month, day=1) - timedelta(days=1)
     else:
         return None
 
-    if target_timezone and target_timezone != current_time.tzinfo:
-        local_time = next_time.astimezone(target_timezone)
-        next_time = local_time.replace(tzinfo=current_time.tzinfo).astimezone(current_time.tzinfo)
-    
-    return next_time
+    return local_next.astimezone(ZoneInfo('UTC'))
 
 class ReminderManager:
     def __init__(self):

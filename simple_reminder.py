@@ -203,11 +203,13 @@ async def check_reminders():
                             reminder.recurring,
                             reminder.timezone
                         )
+                        new_reminder.guild_id = reminder.guild_id
                         to_add.append(new_reminder)
                         logger.info(
                             f"Created next occurrence of recurring reminder: {reminder.message} | "
                             f"Next time: {format_discord_timestamp(next_time)} | "
-                            f"Recurring: {reminder.recurring}"
+                            f"Recurring: {reminder.recurring} | "
+                            f"Timezone: {reminder.timezone}"
                         )
                     else:
                         logger.error(f"Invalid next time calculated for recurring reminder")

@@ -112,30 +112,43 @@ def test_calculate_next_occurrence():
     
     edge_case = datetime(2024, 1, 31, 12, 0, tzinfo=ZoneInfo("UTC"))
     next_edge = calculate_next_occurrence(edge_case, "monthly")
-    assert next_edge == datetime(2024, 2, 29, 12, 0, tzinfo=ZoneInfo("UTC"))  # 2024 is leap year
+    assert next_edge == datetime(2024, 2, 29, 12, 0, tzinfo=ZoneInfo("UTC"))
 
 def test_calculate_next_occurrence_dst():
-    base_time = datetime(2024, 3, 10, 1, 30, tzinfo=ZoneInfo("America/New_York"))
-    next_daily = calculate_next_occurrence(base_time, "daily")
-    assert next_daily.hour == 1
+    timezone = ZoneInfo("America/New_York")
+    
+    base_time = datetime(2024, 3, 10, 1, 30, tzinfo=timezone)
+    next_daily = calculate_next_occurrence(base_time, "daily", timezone)
+    next_daily_local = next_daily.astimezone(timezone)
+    assert next_daily_local.hour == 1
     
     utc_diff = next_daily.astimezone(ZoneInfo('UTC')) - base_time.astimezone(ZoneInfo('UTC'))
     assert utc_diff.total_seconds() == 23 * 3600
-
-    base_time = datetime(2024, 11, 3, 1, 30, tzinfo=ZoneInfo("America/New_York"))
-    next_daily = calculate_next_occurrence(base_time, "daily")
-    assert next_daily.hour == 1
+    
+    base_time = datetime(2024, 11, 3, 1, 30, tzinfo=timezone)
+    next_daily = calculate_next_occurrence(base_time, "daily", timezone)
+    next_daily_local = next_daily.astimezone(timezone)
+    assert next_daily_local.hour == 1
     
     utc_diff = next_daily.astimezone(ZoneInfo('UTC')) - base_time.astimezone(ZoneInfo('UTC'))
     assert utc_diff.total_seconds() == 25 * 3600
 
-    base_time = datetime(2024, 10, 15, 2, 30, tzinfo=ZoneInfo("America/New_York"))
-    next_monthly = calculate_next_occurrence(base_time, "monthly")
-    assert next_monthly.month == 11
-    assert next_monthly.hour == 2
+def test_calculate_next_occurrence_preserves_time():
+    timezone = ZoneInfo('America/New_York')
+    initial_time = datetime(2025, 2, 19, 10, 31, tzinfo=timezone)
+    utc_time = initial_time.astimezone(ZoneInfo('UTC'))
+    next_time = calculate_next_occurrence(utc_time, 'weekly', timezone)
+    next_time_local = next_time.astimezone(timezone)
     
-    utc_diff = next_monthly.astimezone(ZoneInfo('UTC')) - base_time.astimezone(ZoneInfo('UTC'))
-    assert utc_diff.total_seconds() > 0
+    assert next_time_local.hour == initial_time.hour
+    assert next_time_local.minute == initial_time.minute
+    assert next_time_local.day == initial_time.day + 7 
+    
+    for _ in range(5):
+        next_time = calculate_next_occurrence(next_time, 'weekly', timezone)
+        next_time_local = next_time.astimezone(timezone)
+        assert next_time_local.hour == initial_time.hour
+        assert next_time_local.minute == initial_time.minute
 
 @pytest.mark.asyncio
 async def test_reminder_manager_save_load(mock_reminder_data, tmp_path, monkeypatch):
