@@ -4,6 +4,9 @@ import discord
 from discord import app_commands
 from src.reminder import format_discord_timestamp, calculate_next_occurrence
 import re
+import logging
+
+logger = logging.getLogger('reminder_bot.commands.autocomplete')
 
 def format_mentions(text: str, guild: discord.Guild) -> str:
     """Convert Discord mention format to human-readable text."""
@@ -86,34 +89,59 @@ def truncate_display_name(text: str, max_length: int = 100) -> str:
     return text[:max_length-3] + "..."
 
 async def message_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-    command_options = [
-        ('List all reminders', '"list"'),
-        ('Show help', '"help"'),
-    ]
-    options = []
-    
-    for display, value in command_options:
-        if not current or current.lower() in value.lower():
-            options.append(app_commands.Choice(name=truncate_display_name(display), value=value))
-    
-    if current.lower().startswith('remove') or not current or current.lower().startswith('"remove'):
+    """Shows current reminder message when editing"""
+    command_name = interaction.command.name if interaction.command else ""
+    if command_name != "edit":
+        return []
+
+    try:
+        reminder_number = None
+        if hasattr(interaction, 'namespace'):
+            reminder_number = interaction.namespace.number
+        else:
+            for option in interaction.data.get("options", []):
+                if option.get("name") == "number":
+                    reminder_number = int(option.get("value"))
+                    break
+
+        if reminder_number is None:
+            return []
+
         now = datetime.now(ZoneInfo('UTC'))
-        user_reminder_count = 0
+        user_reminders = []
+        guild_id = interaction.guild.id if interaction.guild else None
         
         for r in interaction.client.reminder_manager.reminders:
-            if r.time > now or r.recurring:
-                if interaction.user in r.targets:
-                    user_reminder_count += 1
-                    if user_reminder_count <= 10:
-                        human_readable_msg = format_mentions(r.message, interaction.guild)
-                        message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
-                        remove_option = f'"remove {user_reminder_count}"'
-                        recurring_str = f" (Recurring: {r.recurring})" if r.recurring else ""
-                        time_str = format_timestamp(r.time.astimezone(ZoneInfo(r.timezone)))
-                        display = f"Remove #{user_reminder_count}: {time_str} - {message_preview}{recurring_str}"
-                        options.append(app_commands.Choice(name=truncate_display_name(display), value=remove_option))
+            if r.guild_id != guild_id:
+                continue
+                
+            if interaction.user in r.targets:
+                if r.time > now:
+                    user_reminders.append(r)
+                elif r.recurring:
+                    next_time = calculate_next_occurrence(r.time, r.recurring)
+                    while next_time and next_time <= now:
+                        next_time = calculate_next_occurrence(next_time, r.recurring)
+                    if next_time:
+                        r.time = next_time
+                        user_reminders.append(r)
+        
+        user_reminders.sort(key=lambda x: x.time)
+        if 0 <= reminder_number - 1 < len(user_reminders):
+            reminder = user_reminders[reminder_number - 1]
+            msg = reminder.message
+            if current:
+                if current.lower() in msg.lower():
+                    return [app_commands.Choice(name=msg, value=msg)]
+                return []
+            else:
+                return [app_commands.Choice(name=msg, value=msg)]
+
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.error(f"Error in message_autocomplete: {e}")
+        pass
     
-    return options[:25]
+    return []
 
 async def number_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     """Autocomplete for reminder numbers, showing a preview of each reminder."""

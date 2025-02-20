@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 import logging
 from src.reminder import format_discord_timestamp, calculate_next_occurrence
-from .autocomplete import timezone_autocomplete, recurring_autocomplete, number_autocomplete
+from .autocomplete import timezone_autocomplete, recurring_autocomplete, number_autocomplete, message_autocomplete
 
 logger = logging.getLogger('reminder_bot.commands.edit')
 
@@ -13,14 +13,15 @@ logger = logging.getLogger('reminder_bot.commands.edit')
     number="The reminder number from /reminder list (you can type a specific number)",
     date="(Optional) New date in YYYY-MM-DD format",
     time="(Optional) New time in HH:MM format",
-    message="(Optional) New message for the reminder",
+    message="(Optional) New message - press TAB to autofill current message",
     timezone="(Optional) New timezone (e.g., Europe/Paris)",
     recurring="(Optional) Change recurring schedule (daily, weekly, monthly, or 'none' to remove)"
 )
 @app_commands.autocomplete(
     number=number_autocomplete,
     timezone=timezone_autocomplete,
-    recurring=recurring_autocomplete
+    recurring=recurring_autocomplete,
+    message=message_autocomplete
 )
 async def edit_command(
     interaction: discord.Interaction,
@@ -79,16 +80,21 @@ async def edit_command(
     if reminder.author != author and not author.guild_permissions.manage_messages:
         await interaction.response.send_message("❌ You can only edit reminders that you created.")
         return
+
+    current_timezone = reminder.timezone
+    current_time = reminder.time
+    new_timezone = timezone if timezone else current_timezone
+    new_recurring = None
+    new_time_utc = None
     
+
     if timezone:
         try:
             new_tz = ZoneInfo(timezone)
-            reminder.timezone = timezone
         except ZoneInfoNotFoundError:
             await interaction.response.send_message(f"❌ Invalid timezone '{timezone}'. Timezone not changed.")
             return
-    
-    current_time = reminder.time
+
     if date or time:
         try:
             if date and time:
@@ -96,7 +102,8 @@ async def edit_command(
             elif date:
                 new_time_str = f"{date} {current_time.strftime('%H:%M')}"
             else:
-                new_time_str = f"{current_time.strftime('%Y-%m-%d')} {time}"
+                current_local_time = current_time.astimezone(ZoneInfo(new_timezone))
+                new_time_str = f"{current_local_time.strftime('%Y-%m-%d')} {time}"
             
             naive_time = datetime.strptime(new_time_str, '%Y-%m-%d %H:%M')
             if naive_time.year < 1970:
@@ -104,48 +111,53 @@ async def edit_command(
             if naive_time.year > 9999:
                 raise ValueError("Year must be 9999 or earlier")
             
-            tz = ZoneInfo(reminder.timezone)
+            tz = ZoneInfo(new_timezone)
             local_time = naive_time.replace(tzinfo=tz)
-            reminder.time = local_time.astimezone(ZoneInfo('UTC'))
+            new_time_utc = local_time.astimezone(ZoneInfo('UTC'))
             
             server_now = datetime.now(ZoneInfo('UTC'))
-            if reminder.time < server_now and not reminder.recurring:
-                await interaction.response.send_message("❌ Cannot set non-recurring reminders in the past!")
+            if new_time_utc < server_now and not reminder.recurring:
+                await interaction.response.send_message(
+                    f"❌ The specified time {format_discord_timestamp(local_time)} ({new_timezone}) "
+                    "is in the past. Cannot set non-recurring reminders in the past!"
+                )
                 return
-
         except ValueError as e:
             await interaction.response.send_message(f"❌ Invalid date/time format: {str(e)}. Use 'YYYY-MM-DD' for date and 'HH:MM' for time.")
             return
     
     if recurring:
         if recurring.lower() == 'none':
-            reminder.recurring = None
+            new_recurring = None
         elif recurring.lower() in ['daily', 'weekly', 'monthly']:
-            reminder.recurring = recurring.lower()
+            new_recurring = recurring.lower()
+            check_time = new_time_utc if new_time_utc else current_time
             
-            if reminder.time < datetime.now(ZoneInfo('UTC')):
+            if check_time < datetime.now(ZoneInfo('UTC')):
                 next_time = calculate_next_occurrence(
-                    reminder.time,
-                    reminder.recurring,
-                    ZoneInfo(reminder.timezone)
+                    check_time,
+                    new_recurring,
+                    ZoneInfo(new_timezone)
                 )
                 while next_time and next_time <= datetime.now(ZoneInfo('UTC')):
-                    next_time = calculate_next_occurrence(next_time, reminder.recurring, ZoneInfo(reminder.timezone))
+                    next_time = calculate_next_occurrence(next_time, new_recurring, ZoneInfo(new_timezone))
                 if next_time:
-                    reminder.time = next_time
+                    new_time_utc = next_time
                 else:
                     await interaction.response.send_message("❌ Could not calculate next valid occurrence for recurring reminder!")
                     return
         else:
             await interaction.response.send_message("❌ Invalid recurring option. Use 'daily', 'weekly', 'monthly', or 'none'.")
             return
-    
+
+    new_targets = None
+    new_message = None
     if message:
         has_mentions = any(word.startswith('<@') and word.endswith('>') for word in message.split())
         if not has_mentions:
             original_mentions = [user.mention for user in reminder.targets if user != reminder.author]
             message = f"{message} {' '.join(original_mentions)}".strip()
-        reminder.message = message
+        new_message = message
         
         new_targets = [author]
         mention_count = 0
@@ -181,7 +193,15 @@ async def edit_command(
         if not new_targets:
             await interaction.response.send_message("❌ Could not find any valid users to remind (including role members).")
             return
-            
+
+    if timezone:
+        reminder.timezone = new_timezone
+    if new_time_utc:
+        reminder.time = new_time_utc
+    if recurring:
+        reminder.recurring = new_recurring
+    if new_message:
+        reminder.message = new_message
         reminder.targets = new_targets
     
     interaction.client.reminder_manager.save_reminders()
