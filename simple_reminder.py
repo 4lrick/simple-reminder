@@ -181,6 +181,15 @@ async def check_reminders():
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
             channel_reminders[channel_key].append(('trigger', reminder))
+            # Update or remove the reminder after triggering
+            if reminder.recurring:
+                next_time = calculate_next_occurrence(reminder.time, reminder.recurring, ZoneInfo(reminder.timezone))
+                if next_time and next_time > now:
+                    reminder.time = next_time
+                else:
+                    to_remove.append(reminder)
+            else:
+                to_remove.append(reminder)
 
     for channel_id, reminder_list in channel_reminders.items():
         try:
