@@ -157,6 +157,7 @@ async def check_reminders():
 
     channel_reminders = {}
     for reminder in bot.reminder_manager.reminders:
+        # 15-minute warning branch
         if reminder.time - timedelta(minutes=15) <= now < reminder.time - timedelta(minutes=14):
             logger.info(
                 f"Sending 15-minute warning for reminder: {reminder.message} | "
@@ -168,6 +169,7 @@ async def check_reminders():
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
             channel_reminders[channel_key].append(('warning', reminder))
+        # Trigger reminder branch
         elif now >= reminder.time:
             logger.info(
                 f"Triggering reminder: {reminder.message} | "
@@ -179,104 +181,23 @@ async def check_reminders():
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
             channel_reminders[channel_key].append(('trigger', reminder))
-            
-            if reminder.recurring:
-                try:
-                    next_time = calculate_next_occurrence(
-                        reminder.time, 
-                        reminder.recurring,
-                        ZoneInfo(reminder.timezone)
-                    )
-                    while next_time and next_time <= now:
-                        next_time = calculate_next_occurrence(
-                            next_time, 
-                            reminder.recurring,
-                            ZoneInfo(reminder.timezone)
-                        )
-                    if next_time:
-                        new_reminder = reminder.__class__(
-                            next_time,
-                            reminder.author,
-                            reminder.targets,
-                            reminder.message,
-                            reminder.channel,
-                            reminder.recurring,
-                            reminder.timezone
-                        )
-                        new_reminder.guild_id = reminder.guild_id
-                        to_add.append(new_reminder)
-                        logger.info(
-                            f"Created next occurrence of recurring reminder: {reminder.message} | "
-                            f"Next time: {format_discord_timestamp(next_time)} | "
-                            f"Recurring: {reminder.recurring} | "
-                            f"Timezone: {reminder.timezone}"
-                        )
-                    else:
-                        logger.error(f"Invalid next time calculated for recurring reminder")
-                except Exception as e:
-                    logger.error(f"Failed to calculate next recurring time: {e}")
-            
-            to_remove.append(reminder)
 
     for channel_id, reminder_list in channel_reminders.items():
         try:
             channel = bot.get_channel(channel_id)
             if not channel:
-                logger.warning(f"Channel {channel_id} not found, skipping {len(reminder_list)} reminders")
                 continue
-                
-            for reminder_type, reminder in reminder_list:
-                try:
-                    if reminder_type == 'warning':
-                        logger.info(
-                            f"Sending 15-minute warning for reminder: {reminder.message} | "
-                            f"Time: {format_discord_timestamp(reminder.time)} | "
-                            f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
-                            f"Targets: {', '.join(f'{t.name}' for t in reminder.targets)}"
-                        )
-                        for user in reminder.targets:
-                            timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                            await channel.send(
-                                f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
-                            )
-                            await asyncio.sleep(0.5)
-                    else:
-                        logger.info(
-                            f"Triggering reminder: {reminder.message} | "
-                            f"Time: {format_discord_timestamp(reminder.time)} | "
-                            f"Channel: {reminder.channel.name} ({reminder.channel.id}) | "
-                            f"Targets: {', '.join(f'{t.name}' for t in reminder.targets)}"
-                        )
-                        targets_mentions = ' '.join(user.mention for user in reminder.targets)
-                        timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                        await channel.send(
-                            f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
-                        )
-                        await asyncio.sleep(0.5)
-                except discord.HTTPException as e:
-                    if e.status == 429:
-                        retry_after = e.retry_after
-                        logger.info(f"Rate limited when sending message, waiting {retry_after} seconds")
-                        await asyncio.sleep(retry_after)
-                        try:
-                            if reminder_type == 'warning':
-                                for user in reminder.targets:
-                                    timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                                    await channel.send(
-                                        f"⚠️ Heads up! {user.mention}, you have a reminder at {format_discord_timestamp(reminder.time, 't')}{timezone_str}: {reminder.message}"
-                                    )
-                            else:
-                                targets_mentions = ' '.join(user.mention for user in reminder.targets)
-                                timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                                await channel.send(
-                                    f"🔔 Reminder for {targets_mentions}{timezone_str}: {reminder.message}"
-                                )
-                        except Exception as e2:
-                            logger.error(f"Failed to send message after rate limit retry: {e2}")
-                    else:
-                        logger.error(f"Failed to send message: {e}")
+            for typ, reminder in reminder_list:
+                if typ == 'warning':
+                    # Deduplicate mentions for warning messages and include all targets
+                    unique_mentions = " ".join(dict.fromkeys(user.mention for user in reminder.targets))
+                    formatted_time = reminder.time.astimezone(ZoneInfo(reminder.timezone)).strftime('%I:%M %p')
+                    await channel.send(f"⚠️ Heads up! {unique_mentions}, you have a reminder at {formatted_time} ({reminder.timezone}): {reminder.message}")
+                else:
+                    unique_mentions = " ".join(dict.fromkeys(user.mention for user in reminder.targets))
+                    await channel.send(f"🔔 Reminder: {reminder.message} at {format_discord_timestamp(reminder.time)} - {unique_mentions}")
         except Exception as e:
-            logger.error(f"Error processing channel {channel_id}: {e}")
+            logger.error(f"Error sending message for channel {channel_id}: {e}")
 
     for reminder in to_remove:
         try:
