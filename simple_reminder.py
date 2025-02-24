@@ -157,7 +157,6 @@ async def check_reminders():
 
     channel_reminders = {}
     for reminder in bot.reminder_manager.reminders:
-        # 15-minute warning branch
         if reminder.time - timedelta(minutes=15) <= now < reminder.time - timedelta(minutes=14):
             logger.info(
                 f"Sending 15-minute warning for reminder: {reminder.message} | "
@@ -169,7 +168,6 @@ async def check_reminders():
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
             channel_reminders[channel_key].append(('warning', reminder))
-        # Trigger reminder branch
         elif now >= reminder.time:
             logger.info(
                 f"Triggering reminder: {reminder.message} | "
@@ -181,7 +179,6 @@ async def check_reminders():
             if channel_key not in channel_reminders:
                 channel_reminders[channel_key] = []
             channel_reminders[channel_key].append(('trigger', reminder))
-            # Update or remove the reminder after triggering
             if reminder.recurring:
                 next_time = calculate_next_occurrence(reminder.time, reminder.recurring, ZoneInfo(reminder.timezone))
                 if next_time and next_time > now:
@@ -198,7 +195,6 @@ async def check_reminders():
                 continue
             for typ, reminder in reminder_list:
                 if typ == 'warning':
-                    # Deduplicate mentions for warning messages and include all targets
                     unique_mentions = " ".join(dict.fromkeys(user.mention for user in reminder.targets))
                     formatted_time = reminder.time.astimezone(ZoneInfo(reminder.timezone)).strftime('%I:%M %p')
                     await channel.send(f"⚠️ Heads up! {unique_mentions}, you have a reminder at {formatted_time} ({reminder.timezone}): {reminder.message}")
