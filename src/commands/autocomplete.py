@@ -115,7 +115,7 @@ async def message_autocomplete(interaction: discord.Interaction, current: str) -
             if r.guild_id != guild_id:
                 continue
                 
-            if interaction.user in r.targets:
+            if interaction.user in r.targets or interaction.user == r.author:
                 if r.time > now:
                     user_reminders.append(r)
                 elif r.recurring:
@@ -129,13 +129,16 @@ async def message_autocomplete(interaction: discord.Interaction, current: str) -
         user_reminders.sort(key=lambda x: x.time)
         if 0 <= reminder_number - 1 < len(user_reminders):
             reminder = user_reminders[reminder_number - 1]
-            msg = reminder.message
+            
+            raw_msg = reminder.message
+            formatted_msg = format_mentions(raw_msg, interaction.guild)
+            
             if current:
-                if current.lower() in msg.lower():
-                    return [app_commands.Choice(name=msg, value=msg)]
+                if current.lower() in formatted_msg.lower():
+                    return [app_commands.Choice(name=formatted_msg, value=raw_msg)]
                 return []
             else:
-                return [app_commands.Choice(name=msg, value=msg)]
+                return [app_commands.Choice(name=formatted_msg, value=raw_msg)]
 
     except (ValueError, AttributeError, TypeError) as e:
         logger.error(f"Error in message_autocomplete: {e}")
@@ -153,18 +156,16 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
         if r.guild_id != guild_id:
             continue
             
-        if interaction.user not in r.targets:
-            continue
-            
-        if r.time > now:
-            user_reminders.append(r)
-        elif r.recurring:
-            next_time = calculate_next_occurrence(r.time, r.recurring)
-            while next_time and next_time <= now:
-                next_time = calculate_next_occurrence(next_time, r.recurring)
-            if next_time:
-                r.time = next_time
+        if interaction.user in r.targets or interaction.user == r.author:
+            if r.time > now:
                 user_reminders.append(r)
+            elif r.recurring:
+                next_time = calculate_next_occurrence(r.time, r.recurring)
+                while next_time and next_time <= now:
+                    next_time = calculate_next_occurrence(next_time, r.recurring)
+                if next_time:
+                    r.time = next_time
+                    user_reminders.append(r)
     
     user_reminders.sort(key=lambda x: x.time)
     options = []
@@ -181,11 +182,16 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
             if not current or str(num).startswith(current):
                 human_readable_msg = format_mentions(reminder.message, interaction.guild)
                 message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
+                
+                mentioned_users = [t.display_name for t in reminder.targets]
+                mentions_str = f" (For: {', '.join(mentioned_users)})" if mentioned_users else ""
+                
                 recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
                 timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                targets_str = f" (With: {', '.join(t.display_name for t in reminder.targets if t != interaction.user)})" if len(reminder.targets) > 1 else ""
                 time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
-                display = f"#{num}: {time_str} - {message_preview}{targets_str}{recurring_str}{timezone_str}"
+                
+                creator_str = "" if reminder.author == interaction.user else f" (by {reminder.author.display_name})"
+                display = f"#{num}: {time_str} - {message_preview}{mentions_str}{recurring_str}{timezone_str}{creator_str}"
                 options.append(app_commands.Choice(name=truncate_display_name(display), value=str(num)))
     except ValueError:
         pass

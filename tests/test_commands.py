@@ -140,3 +140,75 @@ async def test_remove_reminder_invalid_number(mock_interaction, future_time):
     assert mock_interaction.response_sent
     assert "❌" in str(mock_interaction.response_content)
     assert "Invalid reminder number" in str(mock_interaction.response_content)
+
+@pytest.mark.asyncio
+async def test_set_reminder_with_separate_mentions(mock_interaction, future_time, mock_guild):
+    mentioned_user = discord.Object(id=123456789)
+    mentioned_user.display_name = "MentionedUser"
+    mentioned_user.mention = "<@123456789>"
+    
+    mock_interaction.guild.get_member = lambda user_id: mentioned_user if user_id == 123456789 else None
+    
+    await reminder_set.callback(
+        mock_interaction,
+        date=future_time.strftime("%Y-%m-%d"),
+        time=future_time.strftime("%H:%M"),
+        message="Test reminder without mentions",
+        mentions="<@123456789>",
+        timezone="UTC"
+    )
+    
+    assert mock_interaction.response_sent
+    assert "✅" in str(mock_interaction.response_content)
+    
+    assert len(mock_interaction.client.reminder_manager.reminders) == 1
+    created_reminder = mock_interaction.client.reminder_manager.reminders[0]
+    
+    assert created_reminder.message == "Test reminder without mentions"
+    
+    assert len(created_reminder.targets) >= 1
+    
+    assert "<@" in str(mock_interaction.response_content)
+
+@pytest.mark.asyncio
+async def test_edit_reminder_with_mentions(mock_interaction, future_time, mock_guild):
+    from src.commands.edit_reminder import edit_command
+    
+    reminder = Reminder(
+        time=future_time,
+        author=mock_interaction.user,
+        targets=[mock_interaction.user],
+        message="Original message",
+        channel=mock_interaction.channel,
+        recurring=None,
+        timezone="UTC"
+    )
+    mock_interaction.client.reminder_manager.reminders.append(reminder)
+    
+    mentioned_user = discord.Object(id=123456789)
+    mentioned_user.display_name = "MentionedUser"
+    mentioned_user.mention = "<@123456789>"
+    
+    mock_interaction.guild.get_member = lambda user_id: mentioned_user if user_id == 123456789 else None
+    
+    await edit_command.callback(
+        mock_interaction,
+        number=1,
+        mentions="<@123456789>",
+        message=None,
+        date=None,
+        time=None,
+        timezone=None,
+        recurring=None
+    )
+    
+    assert mock_interaction.response_sent
+    assert "✅" in str(mock_interaction.response_content)
+    
+    edited_reminder = mock_interaction.client.reminder_manager.reminders[0]
+    assert edited_reminder.message == "Original message"
+    
+    target_ids = [target.id for target in edited_reminder.targets]
+    assert 123456789 in target_ids
+    
+    assert mentioned_user.mention in str(mock_interaction.response_content)

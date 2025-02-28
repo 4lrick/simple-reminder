@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import logging
+import re
 import discord
 from src.reminder import Reminder, format_discord_timestamp, calculate_next_occurrence
 
@@ -10,7 +11,27 @@ MAX_MESSAGE_LENGTH = 1000
 MAX_MENTIONS_PER_REMINDER = 25
 MAX_YEARS_IN_FUTURE = 10
 
-async def handle_reminder(interaction: discord.Interaction, date: str, time: str, message: str, timezone: str = None, recurring: str = None):
+def extract_mentions(message, guild):
+    """Extract all mentions from a message and return cleaned message and mentioned users/roles"""
+    user_pattern = r'<@!?(\d+)>'
+    role_pattern = r'<@&(\d+)>'
+    
+    mentioned_ids = {
+        'users': set(),
+        'roles': set()
+    }
+    
+    for user_id in re.findall(user_pattern, message):
+        mentioned_ids['users'].add(int(user_id))
+        
+    for role_id in re.findall(role_pattern, message):
+        mentioned_ids['roles'].add(int(role_id))
+    
+    cleaned_message = message
+    
+    return cleaned_message, mentioned_ids
+
+async def handle_reminder(interaction: discord.Interaction, date: str, time: str, message: str, timezone: str = None, recurring: str = None, separate_mentions: str = None):
     try:
         if not message:
             await interaction.response.send_message("⚠️ Please provide a message for your reminder.")
@@ -26,30 +47,49 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
 
         author = interaction.user
         channel = interaction.channel
-        mentioned_users = [author]
+        
+        mentioned_users = []
         mention_count = 0
-
-        message_parts = []
-        for word in message.split():
-            if word.startswith('<@&') and word.endswith('>'):
-                try:
-                    role_id = int(word[3:-1])
-                    role = interaction.guild.get_role(role_id)
-                    if role:
-                        mention_count += len(role.members)
-                        if mention_count > MAX_MENTIONS_PER_REMINDER:
-                            await interaction.response.send_message(f"❌ Too many total mentions (including role members). Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
-                            return
-                        for member in role.members:
-                            if member not in mentioned_users:
-                                mentioned_users.append(member)
-                except ValueError:
-                    continue
-            message_parts.append(word)
-        message = ' '.join(message_parts)
-
+        has_mentions = False
+        
+        message_to_parse = message
+        if separate_mentions:
+            message_to_parse = separate_mentions
+        
+        _, mentioned_ids = extract_mentions(message_to_parse, interaction.guild)
+        
+        for role_id in mentioned_ids['roles']:
+            try:
+                role = interaction.guild.get_role(role_id)
+                if role:
+                    has_mentions = True
+                    mention_count += len(role.members)
+                    if mention_count > MAX_MENTIONS_PER_REMINDER:
+                        await interaction.response.send_message(f"❌ Too many total mentions (including role members). Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
+                        return
+                    for member in role.members:
+                        if member not in mentioned_users:
+                            mentioned_users.append(member)
+            except ValueError:
+                continue
+        
+        for user_id in mentioned_ids['users']:
+            try:
+                has_mentions = True
+                mention_count += 1
+                if mention_count > MAX_MENTIONS_PER_REMINDER:
+                    await interaction.response.send_message(f"❌ Too many mentions. Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
+                    return
+                    
+                user = interaction.guild.get_member(user_id)
+                if user and user not in mentioned_users:
+                    mentioned_users.append(user)
+            except ValueError:
+                continue
+        
         if hasattr(interaction, 'data') and 'resolved' in interaction.data and 'users' in interaction.data['resolved']:
             for user_id in interaction.data['resolved']['users']:
+                has_mentions = True
                 mention_count += 1
                 if mention_count > MAX_MENTIONS_PER_REMINDER:
                     await interaction.response.send_message(f"❌ Too many mentions. Maximum is {MAX_MENTIONS_PER_REMINDER} users per reminder.")
@@ -58,6 +98,9 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
                 user = await interaction.client.get_or_fetch_member(interaction.guild.id, int(user_id))
                 if user and user not in mentioned_users:
                     mentioned_users.append(user)
+
+        if not has_mentions:
+            mentioned_users = [author]
 
         if not mentioned_users:
             await interaction.response.send_message("❌ Could not find any valid users to remind (including role members).")

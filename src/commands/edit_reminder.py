@@ -13,7 +13,8 @@ logger = logging.getLogger('reminder_bot.commands.edit')
     number="The reminder number from /reminder list (you can type a specific number)",
     date="(Optional) New date in YYYY-MM-DD format",
     time="(Optional) New time in HH:MM format",
-    message="(Optional) New message - press TAB to autofill current message",
+    message="(Optional) New reminder message content",
+    mentions="(Optional) Set new users to mention (@user1 @user2)",
     timezone="(Optional) New timezone (e.g., Europe/Paris)",
     recurring="(Optional) Change recurring schedule (daily, weekly, monthly, or 'none' to remove)"
 )
@@ -29,13 +30,14 @@ async def edit_command(
     date: str = None,
     time: str = None,
     message: str = None,
+    mentions: str = None,
     timezone: str = None,
     recurring: str = None
 ):
     logger.info(
         f"Command: /reminder edit | User: {interaction.user.name} ({interaction.user.id}) | "
         f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
-        f"Number: {number} | Changes: {', '.join(f'{k}={v}' for k, v in {'date': date, 'time': time, 'message': message, 'timezone': timezone, 'recurring': recurring}.items() if v is not None)}"
+        f"Number: {number} | Changes: {', '.join(f'{k}={v}' for k, v in {'date': date, 'time': time, 'message': message, 'mentions': mentions, 'timezone': timezone, 'recurring': recurring}.items() if v is not None)}"
     )
     
     author = interaction.user
@@ -48,7 +50,7 @@ async def edit_command(
         if r.guild_id != guild_id:
             continue
             
-        if author in r.targets:
+        if interaction.user in r.targets or interaction.user == r.author:
             if r.time > now:
                 user_reminders.append(r)
             elif r.recurring:
@@ -77,10 +79,6 @@ async def edit_command(
     
     reminder = user_reminders[index]
     
-    if reminder.author != author and not author.guild_permissions.manage_messages:
-        await interaction.response.send_message("❌ You can only edit reminders that you created.")
-        return
-
     current_timezone = reminder.timezone
     current_time = reminder.time
     new_timezone = timezone if timezone else current_timezone
@@ -152,47 +150,58 @@ async def edit_command(
 
     new_targets = None
     new_message = None
-    if message:
-        has_mentions = any(word.startswith('<@') and word.endswith('>') for word in message.split())
-        if not has_mentions:
-            original_mentions = [user.mention for user in reminder.targets if user != reminder.author]
-            message = f"{message} {' '.join(original_mentions)}".strip()
+
+    if message is not None:
         new_message = message
-        
-        new_targets = [author]
+
+    if mentions != None:
+        current_non_author_targets = [user for user in reminder.targets if user != author]
+        new_targets = []
         mention_count = 0
+        has_mentions = False
         
-        for word in message.split():
-            if word.startswith('<@&') and word.endswith('>'):
-                try:
-                    role_id = int(word[3:-1])
-                    role = interaction.guild.get_role(role_id)
-                    if role:
-                        mention_count += len(role.members)
+        if mentions.strip():
+            user_pattern = r'<@!?(\d+)>'
+            role_pattern = r'<@&(\d+)>'
+            
+            for word in mentions.split():
+                if word.startswith('<@&') and word.endswith('>'):
+                    try:
+                        role_id = int(word[3:-1])
+                        role = interaction.guild.get_role(role_id)
+                        if role:
+                            has_mentions = True
+                            mention_count += len(role.members)
+                            if mention_count > 25:
+                                await interaction.response.send_message("❌ Too many total mentions (including role members). Maximum is 25 users per reminder.")
+                                return
+                            for member in role.members:
+                                if member not in new_targets:
+                                    new_targets.append(member)
+                    except ValueError:
+                        continue
+                elif word.startswith('<@') and word.endswith('>'):
+                    try:
+                        user_id = int(word[2:-1].replace('!', ''))
+                        has_mentions = True
+                        mention_count += 1
                         if mention_count > 25:
-                            await interaction.response.send_message("❌ Too many total mentions (including role members). Maximum is 25 users per reminder.")
+                            await interaction.response.send_message("❌ Too many mentions. Maximum is 25 users per reminder.")
                             return
-                        for member in role.members:
-                            if member not in new_targets:
-                                new_targets.append(member)
-                except ValueError:
-                    continue
-            elif word.startswith('<@') and word.endswith('>'):
-                try:
-                    user_id = int(word[2:-1].replace('!', ''))
-                    mention_count += 1
-                    if mention_count > 25:
-                        await interaction.response.send_message("❌ Too many mentions. Maximum is 25 users per reminder.")
-                        return
-                    user = interaction.guild.get_member(user_id)
-                    if user and user not in new_targets:
-                        new_targets.append(user)
-                except ValueError:
-                    continue
+                        user = interaction.guild.get_member(user_id)
+                        if user and user not in new_targets:
+                            new_targets.append(user)
+                    except ValueError:
+                        continue
         
-        if not new_targets:
-            await interaction.response.send_message("❌ Could not find any valid users to remind (including role members).")
+        if not has_mentions and mentions.strip() == "":
+            new_targets = [author]
+        
+        if len(new_targets) == 0 and mentions.strip() != "":
+            await interaction.response.send_message("❌ Could not find any valid users to remind from the provided mentions.")
             return
+        
+        logger.debug(f"Updated targets from {len(reminder.targets)} to {len(new_targets)} users")
 
     if timezone:
         reminder.timezone = new_timezone
@@ -200,8 +209,9 @@ async def edit_command(
         reminder.time = new_time_utc
     if recurring:
         reminder.recurring = new_recurring
-    if new_message:
+    if new_message is not None:
         reminder.message = new_message
+    if new_targets is not None:
         reminder.targets = new_targets
     
     interaction.client.reminder_manager.save_reminders()

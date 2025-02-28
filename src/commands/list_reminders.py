@@ -26,18 +26,16 @@ async def list_command(interaction: discord.Interaction, page: int = 1):
         if r.guild_id != guild_id:
             continue
             
-        if interaction.user not in r.targets:
-            continue
-            
-        if r.time > now:
-            active_reminders.append(r)
-        elif r.recurring:
-            next_time = calculate_next_occurrence(r.time, r.recurring)
-            while next_time and next_time <= now:
-                next_time = calculate_next_occurrence(next_time, r.recurring)
-            if next_time:
-                r.time = next_time
+        if interaction.user in r.targets or interaction.user == r.author:
+            if r.time > now:
                 active_reminders.append(r)
+            elif r.recurring:
+                next_time = calculate_next_occurrence(r.time, r.recurring)
+                while next_time and next_time <= now:
+                    next_time = calculate_next_occurrence(next_time, r.recurring)
+                if next_time:
+                    r.time = next_time
+                    active_reminders.append(r)
 
     if not active_reminders:
         await interaction.response.send_message("No active reminders in this server.")

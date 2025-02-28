@@ -34,18 +34,16 @@ async def remove_command(interaction: discord.Interaction, number: int):
         if r.guild_id != guild_id:
             continue
             
-        if interaction.user not in r.targets:
-            continue
-            
-        if r.time > now:
-            user_reminders.append(r)
-        elif r.recurring:
-            next_time = calculate_next_occurrence(r.time, r.recurring)
-            while next_time and next_time <= now:
-                next_time = calculate_next_occurrence(next_time, r.recurring)
-            if next_time:
-                r.time = next_time
+        if interaction.user in r.targets or interaction.user == r.author:
+            if r.time > now:
                 user_reminders.append(r)
+            elif r.recurring:
+                next_time = calculate_next_occurrence(r.time, r.recurring)
+                while next_time and next_time <= now:
+                    next_time = calculate_next_occurrence(next_time, r.recurring)
+                if next_time:
+                    r.time = next_time
+                    user_reminders.append(r)
     
     user_reminders.sort(key=lambda x: x.time)
     
@@ -59,12 +57,12 @@ async def remove_command(interaction: discord.Interaction, number: int):
     
     reminder_to_remove = user_reminders[index]
     
-    if reminder_to_remove.author != author and not author.guild_permissions.manage_messages:
-        await interaction.response.send_message("❌ You can only remove reminders that you created.")
-        return
-    
     interaction.client.reminder_manager.reminders.remove(reminder_to_remove)
     interaction.client.reminder_manager.save_reminders()
+    
+    was_creator = "was the creator" if reminder_to_remove.author == author else "was not the creator"
+    logger.info(f"User {author.name} ({author.id}) removed reminder {index} - {was_creator}")
+    
     recurring_str = f" (Recurring: {reminder_to_remove.recurring})" if reminder_to_remove.recurring else ""
     timezone_str = f" ({reminder_to_remove.timezone})" if reminder_to_remove.timezone != 'UTC' else ""
     await interaction.response.send_message(

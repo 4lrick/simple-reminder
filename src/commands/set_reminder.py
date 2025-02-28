@@ -13,7 +13,8 @@ logger = logging.getLogger('reminder_bot.commands.set')
 @app_commands.describe(
     date="Date in YYYY-MM-DD format",
     time="Time in HH:MM format",
-    message="The reminder message (include @mentions here)",
+    message="The reminder message",
+    mentions="Users to mention (@user1 @user2)",
     timezone="Optional: timezone (e.g., Europe/Paris)",
     recurring="Optional: recurring schedule (daily, weekly, monthly)"
 )
@@ -23,6 +24,7 @@ async def reminder_set(
     date: str,
     time: str,
     message: str,
+    mentions: str = None,
     timezone: str = None,
     recurring: str = None
 ):
@@ -31,4 +33,11 @@ async def reminder_set(
         f"Server: {interaction.guild.name} ({interaction.guild.id}) | "
         f"Date: {date} | Time: {time} | TZ: {timezone or 'UTC'} | Recurring: {recurring or 'No'}"
     )
-    await handle_reminder(interaction, date, time, message, timezone, recurring)
+    
+    full_message = message
+    separate_mentions = None
+    
+    if mentions:
+        separate_mentions = mentions
+    
+    await handle_reminder(interaction, date, time, full_message, timezone, recurring, separate_mentions)

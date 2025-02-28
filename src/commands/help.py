@@ -30,7 +30,7 @@ HELP_TEXT = """📝 **Simple Reminder Bot Commands**
 • Use the tab key for command autocomplete
 • Numbers in edit/remove commands are from /reminder list
 • You can edit multiple fields at once
-• Only the reminder creator can edit/remove it
+• Anyone can view, edit, or remove reminders
 • Maximum of 25 total users (including role members) per reminder"""
 
 async def show_help(ctx):

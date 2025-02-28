@@ -73,3 +73,12 @@ def mock_reminder_data():
         "recurring": None,
         "timezone": "UTC"
     }
+
+@pytest.fixture
+def mock_guild():
+    guild = MockGuild(1, "Test Guild")
+    guild.get_role = lambda role_id: None
+    guild.get_member = lambda user_id: None
+    guild.get_channel = lambda channel_id: None
+    guild.members = []
+    return guild
