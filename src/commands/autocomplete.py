@@ -171,63 +171,65 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
     options = []
     total_reminders = len(user_reminders)
     
-    try:
-        target_num = int(current) if current and current.isdigit() else 1
+    REMINDERS_PER_PAGE = 5
+    
+    if current and current.isdigit():
+        target_num = int(current)
+        target_page = (target_num - 1) // REMINDERS_PER_PAGE + 1
+    else:
+        target_page = 1
         
-        if current and current.isdigit():
-            target_num = int(current)
-            start_idx = max(0, target_num - 3)
-            end_idx = min(total_reminders, start_idx + 5)
-        else:
-            start_idx = 0
-            end_idx = min(5, total_reminders)
+    display_start = (target_page - 1) * REMINDERS_PER_PAGE
+    display_end = min(display_start + REMINDERS_PER_PAGE, total_reminders)
+    
+    if display_start >= total_reminders:
+        display_start = 0
+        display_end = min(REMINDERS_PER_PAGE, total_reminders)
+    
+    for i in range(display_start, display_end):
+        reminder = user_reminders[i]
+        num = i + 1
         
-        for i in range(start_idx, end_idx):
-            reminder = user_reminders[i]
-            num = i + 1
-            if not current or str(num).startswith(current):
-                human_readable_msg = format_mentions(reminder.message, interaction.guild)
-                message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
-                
-                mentioned_users = [t.display_name for t in reminder.targets]
-                mentions_str = f" (For: {', '.join(mentioned_users)})" if mentioned_users else ""
-                
-                recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
-                timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
-                time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
-                
-                creator_str = "" if reminder.author == interaction.user else f" (by {reminder.author.display_name})"
-                display = f"#{num}: {time_str} - {message_preview}{mentions_str}{recurring_str}{timezone_str}{creator_str}"
-                options.append(app_commands.Choice(name=truncate_display_name(display), value=str(num)))
+        human_readable_msg = format_mentions(reminder.message, interaction.guild)
+        message_preview = human_readable_msg[:30] + "..." if len(human_readable_msg) > 30 else human_readable_msg
         
-        if total_reminders > 5:
-            if end_idx < total_reminders:
-                next_page_num = min(end_idx + 1, total_reminders)
-                options.append(app_commands.Choice(
-                    name=f"▼ More reminders available (type a number to jump)",
-                    value=str(next_page_num)
-                ))
-            
-            if start_idx > 0:
-                options.append(app_commands.Choice(
-                    name="▲ Back to first reminders...",
-                    value="1"
-                ))
-            
-            if start_idx == 0 and total_reminders > 15:
-                middle_point = min(10, total_reminders)
-                options.append(app_commands.Choice(
-                    name=f"Go to reminder #{middle_point}...",
-                    value=str(middle_point)
-                ))
-
-            if start_idx == 0 and total_reminders > 25:
-                later_point = min(20, total_reminders)
-                options.append(app_commands.Choice(
-                    name=f"Go to reminder #{later_point}...",
-                    value=str(later_point)
-                ))
-    except ValueError:
-        pass
+        mentioned_users = [t.display_name for t in reminder.targets]
+        mentions_str = f" (For: {', '.join(mentioned_users)})" if mentioned_users else ""
+        
+        recurring_str = f" (Recurring: {reminder.recurring})" if reminder.recurring else ""
+        timezone_str = f" ({reminder.timezone})" if reminder.timezone != 'UTC' else ""
+        time_str = format_timestamp(reminder.time.astimezone(ZoneInfo(reminder.timezone)))
+        
+        creator_str = "" if reminder.author == interaction.user else f" (by {reminder.author.display_name})"
+        display = f"#{num}: {time_str} - {message_preview}{mentions_str}{recurring_str}{timezone_str}{creator_str}"
+        options.append(app_commands.Choice(name=truncate_display_name(display), value=str(num)))
+    
+    max_pages = (total_reminders + REMINDERS_PER_PAGE - 1) // REMINDERS_PER_PAGE
+    
+    if max_pages > 1:
+        if target_page < max_pages:
+            next_page_start = target_page * REMINDERS_PER_PAGE + 1
+            options.append(app_commands.Choice(
+                name=f"Next page: Type {next_page_start} to see page {target_page + 1}",
+                value=str(next_page_start)
+            ))
+        
+        if target_page > 1:
+            prev_page_start = (target_page - 2) * REMINDERS_PER_PAGE + 1
+            options.append(app_commands.Choice(
+                name=f"Previous page: Type {prev_page_start} to see page {target_page - 1}",
+                value=str(prev_page_start)
+            ))
+        
+        if target_page > 1:
+            options.append(app_commands.Choice(
+                name="First page: Type 1 to see page 1",
+                value="1"
+            ))
+        
+        options.append(app_commands.Choice(
+            name=f"Page {target_page}/{max_pages} ({total_reminders} total reminders)",
+            value=current if current and current.isdigit() else "1"
+        ))
     
     return options[:25]
