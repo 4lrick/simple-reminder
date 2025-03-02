@@ -55,6 +55,12 @@ The bot stores all reminders in `/app/data/reminders.json` which is persisted us
 - Mentions: Include @mentions directly in your message
 - Edit: Only specify the fields you want to change when editing
 
+### Navigating Reminders
+When using the `/reminder remove` or `/reminder edit` commands:
+- Type numbers to navigate through your reminders (e.g., type "1" for first page, "6" for second page)
+- Reminders are shown 5 per page - type any number to jump to that reminder's page
+- For example: If you have 15 reminders, typing "11" will show reminders #11-15
+
 ## Development
 
 ### Testing

@@ -204,32 +204,4 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
         display = f"#{num}: {time_str} - {message_preview}{mentions_str}{recurring_str}{timezone_str}{creator_str}"
         options.append(app_commands.Choice(name=truncate_display_name(display), value=str(num)))
     
-    max_pages = (total_reminders + REMINDERS_PER_PAGE - 1) // REMINDERS_PER_PAGE
-    
-    if max_pages > 1:
-        if target_page < max_pages:
-            next_page_start = target_page * REMINDERS_PER_PAGE + 1
-            options.append(app_commands.Choice(
-                name=f"Next page: Type {next_page_start} to see page {target_page + 1}",
-                value=str(next_page_start)
-            ))
-        
-        if target_page > 1:
-            prev_page_start = (target_page - 2) * REMINDERS_PER_PAGE + 1
-            options.append(app_commands.Choice(
-                name=f"Previous page: Type {prev_page_start} to see page {target_page - 1}",
-                value=str(prev_page_start)
-            ))
-        
-        if target_page > 1:
-            options.append(app_commands.Choice(
-                name="First page: Type 1 to see page 1",
-                value="1"
-            ))
-        
-        options.append(app_commands.Choice(
-            name=f"Page {target_page}/{max_pages} ({total_reminders} total reminders)",
-            value=current if current and current.isdigit() else "1"
-        ))
-    
     return options[:25]
