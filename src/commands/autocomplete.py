@@ -169,31 +169,18 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
     
     user_reminders.sort(key=lambda x: x.time)
     options = []
+    total_reminders = len(user_reminders)
     
     try:
         target_num = int(current) if current and current.isdigit() else 1
-        total_reminders = len(user_reminders)
         
         if current and current.isdigit():
             target_num = int(current)
             start_idx = max(0, target_num - 3)
             end_idx = min(total_reminders, start_idx + 5)
-            start_idx = max(0, end_idx - 5)
         else:
             start_idx = 0
             end_idx = min(5, total_reminders)
-            
-            if total_reminders > 5:
-                jump_points = []
-                
-                for i in range(5, total_reminders, 5):
-                    jump_points.append(i + 1)
-                
-                for point in jump_points[:3]:
-                    options.append(app_commands.Choice(
-                        name=f"↓ Jump to #{point} and beyond...",
-                        value=str(point)
-                    ))
         
         for i in range(start_idx, end_idx):
             reminder = user_reminders[i]
@@ -212,30 +199,35 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
                 creator_str = "" if reminder.author == interaction.user else f" (by {reminder.author.display_name})"
                 display = f"#{num}: {time_str} - {message_preview}{mentions_str}{recurring_str}{timezone_str}{creator_str}"
                 options.append(app_commands.Choice(name=truncate_display_name(display), value=str(num)))
-                
-        if current and current.isdigit() and int(current) % 5 == 0 and int(current) < total_reminders:
-            next_page = int(current) + 1
-            options.append(app_commands.Choice(
-                name=f"↓ See next page (starting at #{next_page})...",
-                value=str(next_page)
-            ))
+        
+        if total_reminders > 5:
+            if end_idx < total_reminders:
+                next_page_num = min(end_idx + 1, total_reminders)
+                options.append(app_commands.Choice(
+                    name=f"▼ More reminders available (type a number to jump)",
+                    value=str(next_page_num)
+                ))
             
-        if current and current.isdigit() and int(current) > 5:
-            options.append(app_commands.Choice(
-                name="↑ Back to first page...",
-                value="1"
-            ))
+            if start_idx > 0:
+                options.append(app_commands.Choice(
+                    name="▲ Back to first reminders...",
+                    value="1"
+                ))
             
+            if start_idx == 0 and total_reminders > 15:
+                middle_point = min(10, total_reminders)
+                options.append(app_commands.Choice(
+                    name=f"Go to reminder #{middle_point}...",
+                    value=str(middle_point)
+                ))
+
+            if start_idx == 0 and total_reminders > 25:
+                later_point = min(20, total_reminders)
+                options.append(app_commands.Choice(
+                    name=f"Go to reminder #{later_point}...",
+                    value=str(later_point)
+                ))
     except ValueError:
         pass
-    
-    if len(user_reminders) > 5 and len(options) < 25:
-        remaining = total_reminders - (int(current) if current and current.isdigit() else 0)
-        if remaining > 0:
-            display = f"Type a number between 1 and {total_reminders} to jump directly to that reminder"
-            options.append(app_commands.Choice(
-                name=truncate_display_name(display),
-                value=current or "1"
-            ))
     
     return options[:25]
