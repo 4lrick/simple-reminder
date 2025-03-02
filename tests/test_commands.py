@@ -6,6 +6,7 @@ from src.commands.set_reminder import reminder_set
 from src.commands.list_reminders import list_command
 from src.commands.remove_reminder import remove_command
 from src.reminder import ReminderManager, Reminder
+from src.commands.autocomplete import number_autocomplete
 
 class MockInteractionResponse:
     def __init__(self, interaction):
@@ -212,3 +213,28 @@ async def test_edit_reminder_with_mentions(mock_interaction, future_time, mock_g
     assert 123456789 in target_ids
     
     assert mentioned_user.mention in str(mock_interaction.response_content)
+
+@pytest.mark.asyncio
+async def test_autocomplete_page_navigation(mock_interaction, future_time):
+    """Test that autocomplete pagination works correctly with the REMINDERS_PER_PAGE=5 setting."""
+    
+    for i in range(12):
+        reminder_time = future_time + timedelta(hours=i)
+        reminder = Reminder(
+            time=reminder_time,
+            author=mock_interaction.user, 
+            targets=[mock_interaction.user],
+            message=f"Test reminder #{i+1}",
+            channel=mock_interaction.channel,
+            recurring=None,
+            timezone="UTC"
+        )
+        mock_interaction.client.reminder_manager.reminders.append(reminder)
+    
+    result1 = await number_autocomplete(mock_interaction, "")
+    assert len(result1) <= 5
+    
+    result2 = await number_autocomplete(mock_interaction, "6")
+    assert len(result2) > 0
+    first_result_num = int(result2[0].name.split("#")[1].split(":")[0])
+    assert first_result_num == 6
