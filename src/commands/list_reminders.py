@@ -16,7 +16,7 @@ async def list_command(interaction: discord.Interaction, page: int = 1):
         f"Page: {page}"
     )
     
-    REMINDERS_PER_PAGE = 10
+    REMINDERS_PER_PAGE = 5
     
     active_reminders = []
     now = datetime.now(ZoneInfo('UTC'))

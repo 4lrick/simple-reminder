@@ -172,9 +172,9 @@ async def number_autocomplete(interaction: discord.Interaction, current: str) ->
     
     try:
         target_num = int(current) if current else 1
-        start_idx = max(0, target_num - 13)
-        end_idx = min(len(user_reminders), start_idx + 25)
-        start_idx = max(0, end_idx - 25)
+        start_idx = max(0, target_num - 6)
+        end_idx = min(len(user_reminders), start_idx + 5)
+        start_idx = max(0, end_idx - 5)
         
         for i in range(start_idx, end_idx):
             reminder = user_reminders[i]
