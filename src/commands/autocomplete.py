@@ -132,13 +132,14 @@ async def message_autocomplete(interaction: discord.Interaction, current: str) -
             
             raw_msg = reminder.message
             formatted_msg = format_mentions(raw_msg, interaction.guild)
+            value = raw_msg[:97] + "..." if len(raw_msg) > 100 else raw_msg
             
             if current:
                 if current.lower() in formatted_msg.lower():
-                    return [app_commands.Choice(name=formatted_msg, value=raw_msg)]
+                    return [app_commands.Choice(name=formatted_msg, value=value)]
                 return []
             else:
-                return [app_commands.Choice(name=formatted_msg, value=raw_msg)]
+                return [app_commands.Choice(name=formatted_msg, value=value)]
 
     except (ValueError, AttributeError, TypeError) as e:
         logger.error(f"Error in message_autocomplete: {e}")
