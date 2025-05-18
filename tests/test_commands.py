@@ -7,6 +7,9 @@ from src.commands.list_reminders import list_command
 from src.commands.remove_reminder import remove_command
 from src.reminder import ReminderManager, Reminder
 from src.commands.autocomplete import number_autocomplete
+from src.commands.set_timezone import timezone_command
+from discord.ext import commands
+from discord import app_commands
 
 class MockInteractionResponse:
     def __init__(self, interaction):
@@ -39,10 +42,11 @@ class MockInteraction:
         self.response = MockInteractionResponse(self)
 
 @pytest.fixture
-def mock_bot(mock_user, mock_channel):
+def mock_bot(mock_user, mock_channel, mock_server_config):
     class MockClient:
         def __init__(self):
             self.reminder_manager = ReminderManager()
+            self.server_config = mock_server_config
             self.user = mock_user
     
     return MockClient()
@@ -238,3 +242,66 @@ async def test_autocomplete_page_navigation(mock_interaction, future_time):
     assert len(result2) > 0
     first_result_num = int(result2[0].name.split("#")[1].split(":")[0])
     assert first_result_num == 6
+
+@pytest.mark.asyncio
+async def test_timezone_command_valid(mock_interaction):
+    mock_interaction.user.guild_permissions.manage_guild = True
+    await timezone_command.callback(mock_interaction, "Europe/Paris")
+    
+    assert mock_interaction.response_sent
+    assert "✅" in mock_interaction.response_content
+    assert "Europe/Paris" in mock_interaction.response_content
+    assert mock_interaction.client.server_config.get_server_timezone(mock_interaction.guild.id) == "Europe/Paris"
+
+@pytest.mark.asyncio
+async def test_timezone_command_invalid_timezone(mock_interaction):
+    mock_interaction.user.guild_permissions.manage_guild = True
+    await timezone_command.callback(mock_interaction, "Invalid/Timezone")
+    
+    assert mock_interaction.response_sent
+    assert "❌" in mock_interaction.response_content
+    assert "Invalid timezone" in mock_interaction.response_content
+    assert mock_interaction.client.server_config.get_server_timezone(mock_interaction.guild.id) == "UTC"
+
+@pytest.mark.asyncio
+async def test_timezone_command_no_permission(mock_interaction):
+    mock_interaction.user.guild_permissions.manage_guild = False
+    with pytest.raises(app_commands.errors.MissingPermissions):
+        await timezone_command.callback(mock_interaction, "Europe/Paris")
+    
+    assert mock_interaction.client.server_config.get_server_timezone(mock_interaction.guild.id) == "UTC"
+
+@pytest.mark.asyncio
+async def test_timezone_command_show_current(mock_interaction):
+    mock_interaction.user.guild_permissions.manage_guild = True
+    mock_interaction.client.server_config.set_server_timezone(mock_interaction.guild.id, "Europe/Paris")
+    
+    await timezone_command.callback(mock_interaction, None)
+    
+    assert mock_interaction.response_sent
+    assert "🕒" in mock_interaction.response_content
+    assert "Current server timezone" in mock_interaction.response_content
+    assert "Europe/Paris" in mock_interaction.response_content
+
+@pytest.mark.asyncio
+async def test_timezone_command_show_current_default(mock_interaction):
+    await timezone_command.callback(mock_interaction, None)
+    
+    assert mock_interaction.response_sent
+    assert "🕒" in mock_interaction.response_content
+    assert "Current server timezone" in mock_interaction.response_content
+    assert "UTC" in mock_interaction.response_content
+
+@pytest.mark.asyncio
+async def test_reminder_uses_server_timezone(mock_interaction, future_time):
+    from src.commands.handle_reminder import handle_reminder
+    
+    mock_interaction.client.server_config.set_server_timezone(mock_interaction.guild.id, "Europe/Paris")
+    
+    date = future_time.strftime('%Y-%m-%d')
+    time = future_time.strftime('%H:%M')
+    await handle_reminder(mock_interaction, date, time, "Test reminder")
+    
+    assert len(mock_interaction.client.reminder_manager.reminders) == 1
+    reminder = mock_interaction.client.reminder_manager.reminders[0]
+    assert reminder.timezone == "Europe/Paris"

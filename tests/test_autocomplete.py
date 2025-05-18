@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
-from src.commands.autocomplete import number_autocomplete
+from src.commands.autocomplete import number_autocomplete, timezone_autocomplete, COMMON_TIMEZONES
 from src.reminder import Reminder
 
 class MockUser:
@@ -149,3 +149,24 @@ async def test_number_autocomplete_with_few_reminders():
     result = await number_autocomplete(interaction, "")
     assert len(result) == 3
     assert all(1 <= int(choice.value) <= 3 for choice in result)
+
+@pytest.mark.asyncio
+async def test_timezone_autocomplete_empty(mock_interaction):
+    result = await timezone_autocomplete(mock_interaction, "")
+    assert len(result) == len(COMMON_TIMEZONES)
+    assert all(isinstance(choice, app_commands.Choice) for choice in result)
+    assert all(choice.name in COMMON_TIMEZONES for choice in result)
+
+@pytest.mark.asyncio
+async def test_timezone_autocomplete_search(mock_interaction):
+    result = await timezone_autocomplete(mock_interaction, "paris")
+    assert len(result) > 0
+    assert any(choice.name == "Europe/Paris" for choice in result)
+    assert all(isinstance(choice, app_commands.Choice) for choice in result)
+    assert all("paris" in choice.name.lower() for choice in result)
+
+@pytest.mark.asyncio
+async def test_timezone_autocomplete_limit(mock_interaction):
+    result = await timezone_autocomplete(mock_interaction, "a")
+    assert len(result) <= 25
+    assert all(isinstance(choice, app_commands.Choice) for choice in result)

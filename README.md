@@ -10,7 +10,7 @@ A Discord bot that manages reminders with features like:
 - 15-minute advance notifications
 - Mention multiple users
 - List, edit, and remove reminders
-- Support for different timezones
+- Server-specific timezone settings
 - Native Discord timestamp display
 
 ## Setup & Deployment
@@ -28,7 +28,7 @@ DISCORD_TOKEN=your_token_here docker compose up -d
 
 ### Data Persistence
 
-The bot stores all reminders in `/app/data/reminders.json` which is persisted using a Docker named volume `reminder-data`. This ensures your reminders survive container updates and restarts.
+The bot stores all reminders in `/app/data/reminders.json` and server settings in `/app/data/server_config.json`. Both files are persisted using a Docker named volume `reminder-data`. This ensures your reminders and settings survive container updates and restarts.
 
 ## Usage
 
@@ -40,6 +40,8 @@ The bot stores all reminders in `/app/data/reminders.json` which is persisted us
 /reminder remove number:<number> Remove a reminder by its number
 /reminder edit number:<number> [date:YYYY-MM-DD] [time:HH:MM] [message:MESSAGE] [timezone:ZONE] [recurring:TYPE]
 /reminder set date:<date> time:<time> message:<message> [timezone:<zone>] [recurring:<type>]
+/reminder timezone              Show the current server timezone
+/reminder timezone <timezone>   Set the default timezone for the server (requires Manage Server permission)
 ```
 
 ### Examples
@@ -47,10 +49,16 @@ The bot stores all reminders in `/app/data/reminders.json` which is persisted us
 ```
 /reminder set date:2025-02-10 time:10:00 timezone:Europe/Paris recurring:daily message:Daily standup
 /reminder set date:2025-02-10 time:14:00 message:@user1 @user2 Team meeting
+/reminder timezone              # Show current server timezone
+/reminder timezone Europe/Paris # Set server default timezone (requires Manage Server permission)
 ```
 
 ### Additional Options
-- Timezone: Use timezone: parameter with region name (e.g., Europe/Paris)
+- Timezone: 
+  - Use `/reminder timezone` to check the current server timezone
+  - Use `/reminder timezone Europe/Paris` to set a server-wide default (requires Manage Server permission)
+  - Override the server timezone for specific reminders using the timezone: parameter
+  - Autocomplete support for easy timezone selection
 - Recurring: Use recurring: parameter (daily/weekly/monthly)
 - Mentions: Include @mentions directly in your message
 - Edit: Only specify the fields you want to change when editing

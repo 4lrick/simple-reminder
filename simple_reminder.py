@@ -7,8 +7,9 @@ import logging
 from zoneinfo import ZoneInfo
 from typing import Optional
 from collections import defaultdict
+import os
 
-from src.config import DISCORD_TOKEN, CLEANUP_DAYS
+from src.config import DISCORD_TOKEN, CLEANUP_DAYS, DATA_DIR
 from src.reminder import ReminderManager, format_discord_timestamp, calculate_next_occurrence
 from src.commands.set_reminder import reminder_set
 from src.commands.list_reminders import list_command
@@ -16,6 +17,8 @@ from src.commands.remove_reminder import remove_command
 from src.commands.edit_reminder import edit_command
 from src.commands.help import show_help
 from src.logger import setup_logger
+from src.server_config import ServerConfig
+from src.commands.set_timezone import timezone_command
 
 logger = setup_logger()
 
@@ -28,9 +31,10 @@ class ReminderBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix='!', intents=intents)
         self.reminder_manager = ReminderManager()
+        self.server_config = ServerConfig(DATA_DIR)
         self._last_clear_time = None
         self._command_count = 0
-        self._command_threshold = 1000
+        self._command_threshold = 100
         self._guild_member_cache = {}
     
     async def setup_hook(self):
@@ -40,6 +44,7 @@ class ReminderBot(commands.Bot):
         reminder_group.add_command(list_command)
         reminder_group.add_command(remove_command)
         reminder_group.add_command(edit_command)
+        reminder_group.add_command(timezone_command)
         reminder_group.add_command(app_commands.Command(
             name="help",
             description="Show help about using the bot",

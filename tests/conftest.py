@@ -18,6 +18,7 @@ class MockUser:
         self.display_name = name
         self.global_name = name
         self.mention = f"<@{id}>"
+        self.guild_permissions = type('Permissions', (), {'manage_guild': True})()
 
 class MockChannel:
     id: int
@@ -82,3 +83,54 @@ def mock_guild():
     guild.get_channel = lambda channel_id: None
     guild.members = []
     return guild
+
+class MockServerConfig:
+    def __init__(self):
+        self.server_timezones = {}
+    
+    def set_server_timezone(self, guild_id: int, timezone: str) -> bool:
+        try:
+            ZoneInfo(timezone)
+            self.server_timezones[str(guild_id)] = timezone
+            return True
+        except ZoneInfoNotFoundError:
+            return False
+    
+    def get_server_timezone(self, guild_id: int) -> str:
+        return self.server_timezones.get(str(guild_id), 'UTC')
+
+@pytest.fixture
+def mock_server_config():
+    return MockServerConfig()
+
+@pytest.fixture
+def mock_interaction(mock_user, mock_channel, mock_server_config):
+    class MockInteraction:
+        def __init__(self):
+            self.user = mock_user
+            self.channel = mock_channel
+            self.guild = mock_channel.guild
+            self.response_sent = False
+            self.response_message = None
+            self.response_embed = None
+            self.client = MockClient()
+            self.data = {'resolved': {'users': {}}}
+        
+        async def response_send(self, content=None, embed=None):
+            self.response_sent = True
+            self.response_message = content
+            self.response_embed = embed
+        
+        async def response_edit(self, content=None, embed=None):
+            self.response_sent = True
+            self.response_message = content
+            self.response_embed = embed
+    
+    interaction = MockInteraction()
+    interaction.client.reminder_manager = ReminderManager()
+    interaction.client.server_config = mock_server_config
+    interaction.response = type('Response', (), {
+        'send_message': interaction.response_send,
+        'edit_message': interaction.response_edit
+    })
+    return interaction

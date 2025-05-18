@@ -5,8 +5,26 @@ from discord import app_commands
 from src.reminder import format_discord_timestamp, calculate_next_occurrence
 import re
 import logging
+from typing import List
 
 logger = logging.getLogger('reminder_bot.commands.autocomplete')
+
+COMMON_TIMEZONES = [
+    "UTC",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Europe/Moscow",
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "Asia/Tokyo",
+    "Asia/Shanghai",
+    "Asia/Dubai",
+    "Australia/Sydney",
+    "Pacific/Auckland"
+]
 
 def format_mentions(text: str, guild: discord.Guild) -> str:
     """Convert Discord mention format to human-readable text."""
@@ -44,30 +62,27 @@ def format_timestamp(dt: datetime) -> str:
     """Convert Discord timestamp to human-readable format."""
     return dt.strftime('%Y-%m-%d %H:%M')
 
-async def timezone_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
-    common_zones = [
-        'UTC', 'Europe/Paris', 'Europe/London', 'America/New_York', 
-        'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Shanghai', 
-        'Australia/Sydney', 'Pacific/Auckland'
-    ]
-    
-    options = []
-    for tz in common_zones:
-        if not current or current.lower() in tz.lower():
-            options.append(app_commands.Choice(name=truncate_display_name(tz), value=tz))
-    
-    if len(options) < 25:
-        remaining_slots = 25 - len(options)
-        all_zones = available_timezones()
-        matching_zones = sorted([
-            tz for tz in all_zones 
-            if tz not in common_zones and (not current or current.lower() in tz.lower())
-        ])
+async def timezone_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    """Autocomplete for timezone names"""
+    try:
+        current = current.lower()
+        choices = []
         
-        for tz in matching_zones[:remaining_slots]:
-            options.append(app_commands.Choice(name=truncate_display_name(tz), value=tz))
-    
-    return options
+        if not current:
+            for tz in COMMON_TIMEZONES:
+                choices.append(app_commands.Choice(name=tz, value=tz))
+            return choices[:25]
+        
+        for tz in available_timezones():
+            if current in tz.lower():
+                choices.append(app_commands.Choice(name=tz, value=tz))
+                if len(choices) >= 25: 
+                    break
+        
+        return choices
+    except Exception as e:
+        logger.error(f"Error in timezone autocomplete: {e}")
+        return []
 
 async def recurring_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     """Autocomplete for both set and edit commands - 'none' only shown for edit command"""

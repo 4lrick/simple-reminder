@@ -114,7 +114,7 @@ async def handle_reminder(interaction: discord.Interaction, date: str, time: str
                 await interaction.response.send_message(f"❌ Invalid timezone '{timezone}'. Using server timezone.")
                 return
         
-        server_tz = ZoneInfo('UTC')
+        server_tz = ZoneInfo(interaction.client.server_config.get_server_timezone(interaction.guild.id))
         try:
             try:
                 naive_time = datetime.strptime(f"{date} {time}", '%Y-%m-%d %H:%M')
